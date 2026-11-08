@@ -1,0 +1,360 @@
+{
+ "mode": "mock",
+ "reranker": "mock-overlap",
+ "chunking": {
+  "strategy": "paragraph",
+  "title_prefix": true
+ },
+ "top_k": 8,
+ "n_questions": 14,
+ "table": {
+  "keyword": {
+   "hit1_before": 5,
+   "hit1_after": 5,
+   "mrr_before": 0.4821,
+   "mrr_after": 0.4804,
+   "orders_changed": 6
+  },
+  "vector": {
+   "hit1_before": 4,
+   "hit1_after": 5,
+   "mrr_before": 0.3668,
+   "mrr_after": 0.4429,
+   "orders_changed": 14
+  },
+  "hybrid": {
+   "hit1_before": 4,
+   "hit1_after": 5,
+   "mrr_before": 0.4393,
+   "mrr_after": 0.4869,
+   "orders_changed": 12
+  }
+ },
+ "orders_changed": 32,
+ "questions": [
+  {
+   "q": "책을 늦게 돌려주면 벌금을 내나요?",
+   "gold": "우리 도서관은 연체료를 받지 않습니다",
+   "ranks": {
+    "keyword": [
+     4,
+     4
+    ],
+    "vector": [
+     null,
+     null
+    ],
+    "hybrid": [
+     6,
+     4
+    ]
+   },
+   "explain": {
+    "keyword": "4위 그대로",
+    "vector": "1단계 후보 밖 — 리랭커가 살릴 수 없음",
+    "hybrid": "6위 → 4위로 올라옴"
+   }
+  },
+  {
+   "q": "일요일에는 도서관이 몇 시에 문을 닫나요?",
+   "gold": "토요일과 일요일에는 오전 9시에",
+   "ranks": {
+    "keyword": [
+     1,
+     1
+    ],
+    "vector": [
+     1,
+     1
+    ],
+    "hybrid": [
+     1,
+     1
+    ]
+   },
+   "explain": {
+    "keyword": "1위 그대로",
+    "vector": "1위 그대로",
+    "hybrid": "1위 그대로"
+   }
+  },
+  {
+   "q": "초등학생 아이도 도서관 회원증을 만들 수 있나요? 무엇을 챙겨야 하나요?",
+   "gold": "만 14세 미만 어린이가",
+   "ranks": {
+    "keyword": [
+     3,
+     3
+    ],
+    "vector": [
+     5,
+     3
+    ],
+    "hybrid": [
+     3,
+     3
+    ]
+   },
+   "explain": {
+    "keyword": "3위 그대로",
+    "vector": "5위 → 3위로 올라옴",
+    "hybrid": "3위 그대로"
+   }
+  },
+  {
+   "q": "빌린 책에 커피를 쏟았어요. 어떻게 해야 하나요?",
+   "gold": "책에 물을 쏟거나",
+   "ranks": {
+    "keyword": [
+     2,
+     2
+    ],
+    "vector": [
+     null,
+     null
+    ],
+    "hybrid": [
+     2,
+     2
+    ]
+   },
+   "explain": {
+    "keyword": "2위 그대로",
+    "vector": "1단계 후보 밖 — 리랭커가 살릴 수 없음",
+    "hybrid": "2위 그대로"
+   },
+   "note": "답이 두 문단에 나뉘어 있습니다('분실과 같은 기준'은 앞 문단을 봐야 뜻이 통함). 한 조각만 보는 리랭커가 순서를 크게 못 바꾸는 사례입니다."
+  },
+  {
+   "q": "밤 늦게 책을 반납할 수 있나요?",
+   "gold": "무인 반납함은 정문 옆에",
+   "ranks": {
+    "keyword": [
+     6,
+     7
+    ],
+    "vector": [
+     1,
+     3
+    ],
+    "hybrid": [
+     2,
+     5
+    ]
+   },
+   "explain": {
+    "keyword": "6위 → 7위로 내려감",
+    "vector": "1위 → 3위로 내려감",
+    "hybrid": "2위 → 5위로 내려감"
+   }
+  },
+  {
+   "q": "책 반납이 한 달 넘게 밀리면 어떻게 되나요?",
+   "gold": "장기 연체가 30일을",
+   "ranks": {
+    "keyword": [
+     null,
+     null
+    ],
+    "vector": [
+     null,
+     null
+    ],
+    "hybrid": [
+     null,
+     null
+    ]
+   },
+   "explain": {
+    "keyword": "1단계 후보 밖 — 리랭커가 살릴 수 없음",
+    "vector": "1단계 후보 밖 — 리랭커가 살릴 수 없음",
+    "hybrid": "1단계 후보 밖 — 리랭커가 살릴 수 없음"
+   },
+   "note": "'한 달'과 '30일'처럼 표현이 달라 키워드·하이브리드 1단계가 정답을 후보에 못 올리기도 합니다. 후보 밖의 조각은 리랭커도 살릴 수 없습니다."
+  },
+  {
+   "q": "일반 열람석에서 노트북 충전이 되나요?",
+   "gold": "노트북 전용석은 창가 쪽",
+   "ranks": {
+    "keyword": [
+     1,
+     1
+    ],
+    "vector": [
+     1,
+     1
+    ],
+    "hybrid": [
+     1,
+     1
+    ]
+   },
+   "explain": {
+    "keyword": "1위 그대로",
+    "vector": "1위 그대로",
+    "hybrid": "1위 그대로"
+   }
+  },
+  {
+   "q": "강아지를 데리고 도서관에 들어가도 되나요?",
+   "gold": "시각장애인 안내견을 제외한",
+   "ranks": {
+    "keyword": [
+     1,
+     1
+    ],
+    "vector": [
+     2,
+     1
+    ],
+    "hybrid": [
+     1,
+     1
+    ]
+   },
+   "explain": {
+    "keyword": "1위 그대로",
+    "vector": "2위 → 1위로 올라옴",
+    "hybrid": "1위 그대로"
+   }
+  },
+  {
+   "q": "자전거를 늦게 반납하면 돈을 더 내나요?",
+   "gold": "이용권 시간을 넘기면 5분마다",
+   "ranks": {
+    "keyword": [
+     null,
+     null
+    ],
+    "vector": [
+     null,
+     null
+    ],
+    "hybrid": [
+     null,
+     null
+    ]
+   },
+   "explain": {
+    "keyword": "1단계 후보 밖 — 리랭커가 살릴 수 없음",
+    "vector": "1단계 후보 밖 — 리랭커가 살릴 수 없음",
+    "hybrid": "1단계 후보 밖 — 리랭커가 살릴 수 없음"
+   }
+  },
+  {
+   "q": "중학생도 공유자전거를 탈 수 있나요?",
+   "gold": "만 13세 이상이면 누구나",
+   "ranks": {
+    "keyword": [
+     null,
+     null
+    ],
+    "vector": [
+     null,
+     null
+    ],
+    "hybrid": [
+     null,
+     null
+    ]
+   },
+   "explain": {
+    "keyword": "1단계 후보 밖 — 리랭커가 살릴 수 없음",
+    "vector": "1단계 후보 밖 — 리랭커가 살릴 수 없음",
+    "hybrid": "1단계 후보 밖 — 리랭커가 살릴 수 없음"
+   }
+  },
+  {
+   "q": "새벽 2시에 자전거를 빌릴 수 있나요?",
+   "gold": "공유자전거는 연중 24시간",
+   "ranks": {
+    "keyword": [
+     1,
+     1
+    ],
+    "vector": [
+     8,
+     1
+    ],
+    "hybrid": [
+     4,
+     1
+    ]
+   },
+   "explain": {
+    "keyword": "1위 그대로",
+    "vector": "8위 → 1위로 올라옴",
+    "hybrid": "4위 → 1위로 올라옴"
+   }
+  },
+  {
+   "q": "대여소에 자리가 없으면 자전거를 어디에 두나요?",
+   "gold": "대여소가 가득 차 있으면",
+   "ranks": {
+    "keyword": [
+     3,
+     3
+    ],
+    "vector": [
+     6,
+     3
+    ],
+    "hybrid": [
+     5,
+     3
+    ]
+   },
+   "explain": {
+    "keyword": "3위 그대로",
+    "vector": "6위 → 3위로 올라옴",
+    "hybrid": "5위 → 3위로 올라옴"
+   }
+  },
+  {
+   "q": "자전거를 타다가 넘어져 다쳤어요.",
+   "gold": "이용 중 사고가 나면",
+   "ranks": {
+    "keyword": [
+     6,
+     6
+    ],
+    "vector": [
+     7,
+     5
+    ],
+    "hybrid": [
+     5,
+     5
+    ]
+   },
+   "explain": {
+    "keyword": "6위 그대로",
+    "vector": "7위 → 5위로 올라옴",
+    "hybrid": "5위 그대로"
+   }
+  },
+  {
+   "q": "자전거를 잃어버리면 얼마를 물어내야 하나요?",
+   "gold": "자전거를 잃어버리거나 일부러",
+   "ranks": {
+    "keyword": [
+     1,
+     1
+    ],
+    "vector": [
+     1,
+     1
+    ],
+    "hybrid": [
+     1,
+     1
+    ]
+   },
+   "explain": {
+    "keyword": "1위 그대로",
+    "vector": "1위 그대로",
+    "hybrid": "1위 그대로"
+   }
+  }
+ ]
+}
