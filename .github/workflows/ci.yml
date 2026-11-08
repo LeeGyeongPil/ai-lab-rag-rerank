@@ -1,0 +1,19 @@
+# 키·모델 없이 mock 모드로 전체 흐름을 검증한다(실제 모델 테스트는 -m "not real" 로 제외).
+name: ci
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      RAG_MODE: mock
+      RAG_NO_BROWSER: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv python install
+      - run: uv sync --locked
+      - run: uv run pytest -q -m "not real"
+      # AC-1: 설치 직후 한 줄로 mock 엔드투엔드
+      - run: uv run rag-rerank ask "책을 늦게 돌려주면 벌금을 내나요?" --mock
