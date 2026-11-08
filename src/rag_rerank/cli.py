@@ -1,6 +1,7 @@
 """명령줄: rag-rerank [serve|ask|eval|index|doctor] [--mock]
 
   uv run rag-rerank                      웹 화면 띄우기(기본, http://127.0.0.1:8765)
+  uv run rag-rerank --mock --no-browser   브라우저를 열지 않고 주소만 출력(화면 없는 서버·컨테이너)
   uv run rag-rerank ask "질문" --mock     터미널에서 전/후 비교 + 답변 A/B
   uv run rag-rerank eval --mock --json    성적표(hit@1·MRR 전/후)
   uv run rag-rerank index 내폴더          내 문서 폴더 색인해 보기
@@ -199,6 +200,18 @@ def _doctor(args) -> int:
 
 
 # ---------- serve ----------
+WILDCARD_HOSTS = ("0.0.0.0", "::")  # '모든 주소에서 받기' — 브라우저 주소로는 쓸 수 없다
+
+
+def browser_url(host: str, port: int) -> str:
+    """브라우저에 넣을 수 있는 주소. 0.0.0.0·:: 은 '모든 주소'라는 뜻일 뿐이라 이 컴퓨터 주소로 바꿔 보여 준다."""
+    if host == "0.0.0.0":
+        host = "127.0.0.1"
+    elif host == "::":
+        host = "[::1]"
+    return f"http://{host}:{port}"
+
+
 def _serve(args) -> int:
     import uvicorn
 
@@ -207,18 +220,21 @@ def _serve(args) -> int:
     settings = Settings.from_env()
     mode_info = resolve_mode(settings, force_mock=getattr(args, "mock", False))
     port = args.port or settings.port
-    url = f"http://{args.host}:{port}"
+    url = browser_url(args.host, port)
+    probe_host = "127.0.0.1" if args.host in WILDCARD_HOSTS else args.host
     with closing(socket.socket()) as probe:  # 포트가 이미 쓰이고 있으면 알아듣기 쉬운 말로 알린다
-        if probe.connect_ex((args.host, port)) == 0:
+        if probe.connect_ex((probe_host, port)) == 0:
             print(f"포트 {port} 를 이미 다른 프로그램이 쓰고 있습니다. 다른 포트로 실행하세요:\n"
                   f"  uv run rag-rerank serve --port {port + 1}   (또는 RAG_PORT={port + 1})", file=sys.stderr)
             return 1
-    print(f"[{mode_info.mode.upper()}] {mode_info.reason}")
+    # flush=True: 터미널이 아닌 곳(도커 로그, 파이프)으로 내보낼 때도 이 줄들이 바로 보이게 한다
+    print(f"[{mode_info.mode.upper()}] {mode_info.reason}", flush=True)
     for hint in mode_info.hints:
-        print(f"  · {hint}")
-    print(f"화면: {url}  (끝내려면 Ctrl+C)")
+        print(f"  · {hint}", flush=True)
+    print(f"화면: {url}  (끝내려면 Ctrl+C)", flush=True)
     timer = None
-    if not args.no_browser and not os.environ.get("RAG_NO_BROWSER"):
+    # --no-browser 는 'rag-rerank --no-browser' 와 'rag-rerank serve --no-browser' 어느 쪽에 써도 된다
+    if not getattr(args, "no_browser", False) and not os.environ.get("RAG_NO_BROWSER"):
         timer = threading.Timer(1.5, webbrowser.open, args=(url,))  # 서버가 뜰 시간을 조금 준다
         timer.daemon = True
         timer.start()
@@ -226,10 +242,12 @@ def _serve(args) -> int:
         # --host 로 다른 주소를 직접 고른 경우에만 그 이름을 Host 허용 목록에 더한다(기본은 127.0.0.1·localhost)
         if args.host in ("127.0.0.1", "localhost"):
             extra = []
-        elif args.host in ("0.0.0.0", "::"):
+        elif args.host in WILDCARD_HOSTS:
             # 모든 주소로 열기는 "다른 기기에서도 접속"을 직접 고른 것이므로 Host 검사를 푼다(접속 IP를 미리 알 수 없음)
             extra = ["*"]
-            print("주의: 같은 네트워크의 다른 기기에서도 이 서버에 접속할 수 있습니다. 믿을 수 있는 네트워크에서만 쓰세요.")
+            print(f"다른 기기에서는 http://<이 컴퓨터 IP>:{port} 로 접속하세요(도커라면 -p {port}:{port} 로 포트를 열어 두세요).\n"
+                  "주의: 같은 네트워크의 다른 기기에서도 이 서버에 접속할 수 있습니다. 믿을 수 있는 네트워크에서만 쓰세요.",
+                  flush=True)
         else:
             extra = [args.host]
         uvicorn.run(create_app(settings, mode_info, extra_hosts=extra), host=args.host, port=port, log_level="warning")
@@ -253,12 +271,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(prog="rag-rerank", parents=[common],
                                      description="RAG 리랭킹 전/후 비교 워크벤치")
+    # 하위 명령 없이 'rag-rerank --no-browser' 로도 쓸 수 있게(화면 없는 서버·컨테이너·SSH)
+    parser.add_argument("--no-browser", action="store_true", default=argparse.SUPPRESS,
+                        help="브라우저를 자동으로 열지 않음(주소만 출력)")
     sub = parser.add_subparsers(dest="cmd")
 
     p = sub.add_parser("serve", parents=[common], help="웹 화면(기본)")
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=None)
-    p.add_argument("--no-browser", action="store_true", help="브라우저를 자동으로 열지 않음")
+    p.add_argument("--no-browser", action="store_true", default=argparse.SUPPRESS,
+                   help="브라우저를 자동으로 열지 않음(주소만 출력)")
 
     p = sub.add_parser("ask", parents=[common], help="터미널에서 질문 한 번")
     p.add_argument("question")
@@ -287,7 +309,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     cmd = args.cmd or "serve"
     if cmd == "serve" and args.cmd is None:  # 하위 명령 없이 실행 → serve 기본값 채우기
-        args.host, args.port, args.no_browser = "127.0.0.1", None, False
+        args.host, args.port = "127.0.0.1", None
     if cmd == "ask":
         return asyncio.run(_ask(args))
     if cmd == "eval":
