@@ -1,7 +1,7 @@
 """임베딩: 글 → 의미 벡터(숫자 목록). 의미가 가까운 글일수록 벡터 방향이 비슷해진다.
 
 - OllamaEmbedder : 로컬 Ollama 의 bge-m3(1024차원, 다국어) — 실제 모드
-- MockEmbedder   : 한글 2글자 토큰을 256칸에 해싱해 세는 가짜 벡터 — mock 모드
+- MockEmbedder   : 한글 2글자 토큰을 256칸에 해싱해 세는 가짜 벡터(+ 뜻 사전을 약하게) — mock 모드
 """
 
 from __future__ import annotations
@@ -12,13 +12,15 @@ import httpx
 import numpy as np
 
 from .bm25 import grams
+from .mocklex import concept_keys
 
 
 class MockEmbedder:
     """결정적 가짜 임베딩. 같은 글이면 어느 컴퓨터·어느 실행에서든 같은 벡터가 나온다."""
 
-    name = "mock-hash256"
+    name = "mock-hash256-lex1"  # 만드는 방식이 바뀌면 이름도 바꾼다(예전 색인 캐시를 쓰지 않게)
     dim = 256
+    concept_weight = 2.5  # 뜻 사전 항목 하나의 무게. 후보 안에는 올릴 만큼, 1위로 만들 만큼은 아니게(대충 아는 수준)
 
     async def embed(self, texts: list[str]) -> np.ndarray:
         out = np.zeros((len(texts), self.dim), np.float32)
@@ -26,6 +28,8 @@ class MockEmbedder:
             for g in grams(text):
                 # 파이썬 hash()는 실행마다 값이 바뀐다 → 항상 같은 값을 주는 crc32 를 쓴다
                 out[row, zlib.crc32(g.encode()) % self.dim] += 1.0
+            for key in concept_keys(text):  # '중학생'과 '만 13세'가 같은 칸을 조금 공유한다
+                out[row, zlib.crc32(f"뜻:{key}".encode()) % self.dim] += self.concept_weight
         norms = np.linalg.norm(out, axis=1, keepdims=True)
         return out / np.where(norms == 0, 1, norms)  # 길이 1로 맞춤(코사인 비교용)
 

@@ -3,7 +3,7 @@
 - OnnxCrossEncoder : bge-reranker-v2-m3 int8 ONNX 를 onnxruntime(CPU)으로 돌린다 — 실제 모드
   · 크로스 인코더: (질문, 청크) 한 쌍을 하나의 입력으로 넣는다. 1단계(따로 벡터로 만들어 거리 비교)보다
     느리지만 '만 13세 이상' 같은 세부 조건까지 함께 읽는다. 그래서 후보 수십 개에만 쓴다.
-- MockReranker     : 질문 2글자 토큰이 청크에 얼마나 들어 있는지(드문 토큰일수록 가중) — mock 모드
+- MockReranker     : 질문 2글자 토큰이 청크에 얼마나 들어 있는지(드문 토큰일수록 가중) + 뜻 사전 — mock 모드
 - RerankerHub      : 모델 파일 내려받기(백그라운드 스레드 하나, 진행률)와 지연 로딩을 맡는다.
 
 onnxruntime·tokenizers·huggingface_hub 는 실제 모드에서만 import 한다(mock·CI 는 필요 없음).
@@ -21,25 +21,46 @@ import numpy as np
 
 from .bm25 import grams
 from .config import RERANKER_FILES, RERANKER_REPO, Settings
+from .mocklex import concepts
 
 
 class MockReranker:
-    """결정적 가짜 리랭커. 1단계(해시 벡터·BM25)와 다른 신호라서 순서가 실제로 바뀐다."""
+    """결정적 가짜 리랭커. 1단계(해시 벡터·BM25)와 다른 신호라서 순서가 실제로 바뀐다.
+
+    점수 = 질문의 '뜻 단위'가 청크에 얼마나 들어 있는지(가중 포함률)를 시그모이드로 0~1 로 바꾼 값.
+    뜻 단위는 보통 2글자 토큰 하나지만, 뜻 사전(mocklex)에 있는 표현은 한 덩어리로 본다.
+    예: 질문의 '중학생'은 청크에 '중학생'이 있거나 '만 13세'가 있으면 채워진 것으로 친다.
+    """
 
     name = "mock-overlap"
-    min_score = 0.1  # 겹치는 토큰이 거의 없으면(포함률 7.5% 미만) 근거 부족으로 본다
+    min_score = 0.1  # mock 전용 고정 문턱값: 겹치는 뜻이 거의 없으면(포함률 7.5% 미만) 근거 부족으로 본다
 
     def __init__(self, df: Counter, n_docs: int):
         self.df, self.n_docs = df, n_docs
 
-    def score(self, query: str, texts: list[str]) -> list[float]:
+    def _weight(self, g: str) -> float:
+        return math.log(1 + self.n_docs / (1 + self.df[g]))  # 드문 토큰일수록 무겁게
+
+    def units(self, query: str) -> list[tuple[float, tuple[str, ...], set[str]]]:
+        """질문 → 뜻 단위 목록 [(무게, 같은 뜻 표현들, 2글자 토큰들)]. 표현 또는 토큰이 청크에 있으면 채워진다."""
         q = set(grams(query))
-        weight = {g: math.log(1 + self.n_docs / (1 + self.df[g])) for g in q}  # 드문 토큰일수록 무겁게
-        total = sum(weight.values()) or 1.0
+        out = []
+        for word, alts in concepts(query):
+            toks = set(grams(word)) & q
+            q -= toks  # 사전 표현에 속한 토큰은 따로 세지 않는다(두 번 세지 않게)
+            # 사전 표현은 글자가 달라도 같은 뜻이므로 넉넉히(토큰 무게 합의 1.5배) 쳐 준다
+            out.append((1.5 * sum(self._weight(g) for g in toks), (word, *alts), set()))
+        out += [(self._weight(g), (), {g}) for g in sorted(q)]
+        return out
+
+    def score(self, query: str, texts: list[str]) -> list[float]:
+        units = self.units(query)
+        total = sum(w for w, _, _ in units) or 1.0
         out = []
         for text in texts:
             present = set(grams(text))
-            cover = sum(w for g, w in weight.items() if g in present) / total  # 질문 토큰 포함률(가중)
+            hit = sum(w for w, phrases, toks in units if (toks & present) or any(p in text for p in phrases))
+            cover = hit / total  # 질문 뜻 단위 포함률(가중)
             out.append(round(1 / (1 + math.exp(-8 * (cover - 0.35))), 4))  # 시그모이드로 0~1
         return out
 

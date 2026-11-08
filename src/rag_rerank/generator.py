@@ -3,7 +3,7 @@
 - OllamaGenerator : Ollama /api/chat + think:true + 스트리밍 — 실제 모드
   · qwen3:4b 는 '생각 전용' 모델이라 생각을 끌 수 없다. think:true 로 받으면 Ollama 가
     생각(message.thinking)과 답(message.content)을 나눠 준다 → 생각은 토큰 수만 보여 주고 답만 쓴다.
-- MockGenerator   : 근거 1번에서 질문과 가장 많이 겹치는 문장을 그대로 옮기는 추출형 답 — mock 모드
+- MockGenerator   : 근거 1번에서 질문과 가장 많이 겹치는(뜻 사전 포함) 문장을 그대로 옮기는 추출형 답 — mock 모드
 
 두 생성기 모두 같은 이벤트를 흘려보낸다(비동기 제너레이터).
   {"type": "thinking", "tokens": 120}   생각 진행(토큰 수)
@@ -16,12 +16,13 @@ from __future__ import annotations
 import json
 import re
 import time
-from typing import AsyncIterator
+from typing import AsyncIterator, Callable
 
 import httpx
 
 from .bm25 import grams
 from .highlight import split_sentences
+from .mocklex import overlap as lexicon_overlap
 
 PREFIX = re.compile(r"^\[[^\]]*\]\s*")
 NO_EVIDENCE = "문서에서 근거를 찾지 못했습니다."
@@ -39,14 +40,19 @@ def build_messages(question: str, evidence: list[str]) -> list[dict]:
     ]
 
 
-def extractive_answer(question: str, evidence: list[str]) -> str:
-    """근거 1번에서 질문 토큰이 가장 많이 겹치는 문장을 골라 '[1]'을 붙인다(모델 없이 만드는 답)."""
+def token_overlap(question: str, sentence: str) -> int:
+    """질문과 문장이 함께 가진 2글자 토큰 수."""
+    return len(set(grams(question)) & set(grams(sentence)))
+
+
+def extractive_answer(question: str, evidence: list[str],
+                      overlap: Callable[[str, str], int] = token_overlap) -> str:
+    """근거 1번에서 질문과 가장 많이 겹치는 문장을 골라 '[1]'을 붙인다(모델 없이 만드는 답)."""
     if not evidence:
         return NO_EVIDENCE
-    q = set(grams(question))
     text = PREFIX.sub("", evidence[0])  # 청크 앞의 "[문서 > 절 제목] " 접두는 답에 넣지 않는다
     sentences = [text[s:e] for s, e in split_sentences(text)] or [text]
-    best = max(sentences, key=lambda s: (len(q & set(grams(s))), -sentences.index(s)))
+    best = max(sentences, key=lambda s: (overlap(question, s), -sentences.index(s)))  # 동점이면 앞 문장
     return f"근거에 따르면 {best} [1]"
 
 
@@ -58,7 +64,8 @@ class MockGenerator:
     async def stream(self, question: str, evidence: list[str]) -> AsyncIterator[dict]:
         for n in (4, 8, 12):
             yield {"type": "thinking", "tokens": n}
-        answer = extractive_answer(question, evidence)
+        # mock 리랭커와 같은 뜻 사전으로 문장을 고른다('중학생' 질문 → '만 13세 …' 문장)
+        answer = extractive_answer(question, evidence, overlap=lexicon_overlap)
         for i in range(0, len(answer), 12):
             yield {"type": "content", "text": answer[i : i + 12]}
 

@@ -10,27 +10,27 @@
  "table": {
   "keyword": {
    "hit1_before": 5,
-   "hit1_after": 5,
+   "hit1_after": 8,
    "mrr_before": 0.4821,
-   "mrr_after": 0.4804,
-   "orders_changed": 6
+   "mrr_after": 0.6412,
+   "orders_changed": 9
   },
   "vector": {
-   "hit1_before": 4,
-   "hit1_after": 5,
-   "mrr_before": 0.3668,
-   "mrr_after": 0.4429,
+   "hit1_before": 5,
+   "hit1_after": 8,
+   "mrr_before": 0.5149,
+   "mrr_after": 0.6786,
    "orders_changed": 14
   },
   "hybrid": {
    "hit1_before": 4,
-   "hit1_after": 5,
-   "mrr_before": 0.4393,
-   "mrr_after": 0.4869,
-   "orders_changed": 12
+   "hit1_after": 9,
+   "mrr_before": 0.5,
+   "mrr_after": 0.7167,
+   "orders_changed": 13
   }
  },
- "orders_changed": 32,
+ "orders_changed": 36,
  "questions": [
   {
    "q": "책을 늦게 돌려주면 벌금을 내나요?",
@@ -38,21 +38,21 @@
    "ranks": {
     "keyword": [
      4,
-     4
+     1
     ],
     "vector": [
-     null,
-     null
+     2,
+     2
     ],
     "hybrid": [
-     6,
-     4
+     2,
+     1
     ]
    },
    "explain": {
-    "keyword": "4위 그대로",
-    "vector": "1단계 후보 밖 — 리랭커가 살릴 수 없음",
-    "hybrid": "6위 → 4위로 올라옴"
+    "keyword": "4위 → 1위로 올라옴",
+    "vector": "2위 그대로",
+    "hybrid": "2위 → 1위로 올라옴"
    }
   },
   {
@@ -84,21 +84,21 @@
    "ranks": {
     "keyword": [
      3,
-     3
+     1
     ],
     "vector": [
-     5,
-     3
+     2,
+     1
     ],
     "hybrid": [
      3,
-     3
+     1
     ]
    },
    "explain": {
-    "keyword": "3위 그대로",
-    "vector": "5위 → 3위로 올라옴",
-    "hybrid": "3위 그대로"
+    "keyword": "3위 → 1위로 올라옴",
+    "vector": "2위 → 1위로 올라옴",
+    "hybrid": "3위 → 1위로 올라옴"
    }
   },
   {
@@ -204,7 +204,7 @@
      1
     ],
     "vector": [
-     2,
+     1,
      1
     ],
     "hybrid": [
@@ -214,7 +214,7 @@
    },
    "explain": {
     "keyword": "1위 그대로",
-    "vector": "2위 → 1위로 올라옴",
+    "vector": "1위 그대로",
     "hybrid": "1위 그대로"
    }
   },
@@ -227,8 +227,8 @@
      null
     ],
     "vector": [
-     null,
-     null
+     4,
+     3
     ],
     "hybrid": [
      null,
@@ -237,7 +237,7 @@
    },
    "explain": {
     "keyword": "1단계 후보 밖 — 리랭커가 살릴 수 없음",
-    "vector": "1단계 후보 밖 — 리랭커가 살릴 수 없음",
+    "vector": "4위 → 3위로 올라옴",
     "hybrid": "1단계 후보 밖 — 리랭커가 살릴 수 없음"
    }
   },
@@ -250,18 +250,18 @@
      null
     ],
     "vector": [
-     null,
-     null
+     6,
+     1
     ],
     "hybrid": [
-     null,
-     null
+     6,
+     1
     ]
    },
    "explain": {
     "keyword": "1단계 후보 밖 — 리랭커가 살릴 수 없음",
-    "vector": "1단계 후보 밖 — 리랭커가 살릴 수 없음",
-    "hybrid": "1단계 후보 밖 — 리랭커가 살릴 수 없음"
+    "vector": "6위 → 1위로 올라옴",
+    "hybrid": "6위 → 1위로 올라옴"
    }
   },
   {
@@ -293,21 +293,21 @@
    "ranks": {
     "keyword": [
      3,
-     3
+     1
     ],
     "vector": [
-     6,
-     3
+     3,
+     1
     ],
     "hybrid": [
-     5,
-     3
+     2,
+     1
     ]
    },
    "explain": {
-    "keyword": "3위 그대로",
-    "vector": "6위 → 3위로 올라옴",
-    "hybrid": "5위 → 3위로 올라옴"
+    "keyword": "3위 → 1위로 올라옴",
+    "vector": "3위 → 1위로 올라옴",
+    "hybrid": "2위 → 1위로 올라옴"
    }
   },
   {
@@ -316,21 +316,21 @@
    "ranks": {
     "keyword": [
      6,
-     6
+     3
     ],
     "vector": [
-     7,
-     5
+     3,
+     3
     ],
     "hybrid": [
-     5,
-     5
+     4,
+     3
     ]
    },
    "explain": {
-    "keyword": "6위 그대로",
-    "vector": "7위 → 5위로 올라옴",
-    "hybrid": "5위 그대로"
+    "keyword": "6위 → 3위로 올라옴",
+    "vector": "3위 그대로",
+    "hybrid": "4위 → 3위로 올라옴"
    }
   },
   {

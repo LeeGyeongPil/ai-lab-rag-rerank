@@ -24,10 +24,8 @@ def test_compare_schema(engine, make_index, retriever):
     # 키워드 검색은 겹치는 토큰이 있는 청크만 돌려주므로 8개보다 적을 수 있다
     assert 0 < len(r["before"]) <= 8 and (retriever == "keyword" or len(r["before"]) == 8)
     assert_compare_schema(r)
-    # 벡터·하이브리드에서는 이 질문의 순서가 실제로 바뀐다(리랭커가 1단계와 다른 신호를 쓴다는 증거).
-    # 키워드(BM25)는 mock 리랭커와 신호가 비슷해 이 질문에서는 순서가 그대로다 — 그것도 그대로 보여 준다.
-    if retriever != "keyword":
-        assert any(c["move"] != 0 for c in r["after"])
+    # 세 검색기 모두 이 질문의 순서가 실제로 바뀐다(리랭커가 1단계와 다른 신호 — 뜻 사전 — 를 쓴다는 증거)
+    assert any(c["move"] != 0 for c in r["after"])
 
     for side in ("A", "B"):
         events = asyncio.run(_collect(engine, index, r, side))
