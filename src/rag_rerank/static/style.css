@@ -1,0 +1,155 @@
+:root {
+  --bg: #f7f7f4;
+  --panel: #ffffff;
+  --ink: #1d1f23;
+  --dim: #6b7079;
+  --line: #e2e2dc;
+  --accent: #2f5fd0;
+  --up: #1f8a4c;
+  --down: #c4462e;
+  --same: #a3a7ae;
+  --hl: #fff0a3;
+  --gold: #b07b00;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15171a; --panel: #1e2125; --ink: #e8e9eb; --dim: #9aa0a8; --line: #30343a;
+    --accent: #7ea2ff; --up: #4cc27f; --down: #ff7b62; --same: #6d727a; --hl: #5c5220; --gold: #e0b341;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+}
+button, input, select { font: inherit; color: inherit; }
+button {
+  border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 6px 12px; cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: .5; cursor: default; }
+.dim { color: var(--dim); }
+.small { font-size: 13px; }
+
+/* ----- 상단 ----- */
+.top { padding: 14px 24px 0; background: var(--panel); border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.brand h1 { font-size: 20px; margin: 0; }
+.badge { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: var(--line); }
+.badge.mock { background: #ffd8a8; color: #7a3d00; }
+.badge.real { background: #c9f0d6; color: #11552c; }
+.models { color: var(--dim); font-size: 13px; }
+.mode-note { margin-top: 8px; font-size: 13px; padding: 8px 10px; border-radius: 8px; background: #fff4e5; color: #6b3a00; }
+@media (prefers-color-scheme: dark) { .mode-note { background: #3a2a14; color: #ffd8a8; } }
+.mode-note code { background: rgba(0,0,0,.06); padding: 0 4px; border-radius: 4px; }
+.rr-status { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 13px; }
+.rr-status[hidden] { display: none; } /* display:flex 가 hidden 속성을 덮어쓰지 않게 */
+.bar { flex: 0 1 260px; height: 8px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.bar > div { height: 100%; width: 0; background: var(--accent); transition: width .4s; }
+.tabs { display: flex; gap: 4px; margin-top: 12px; }
+.tab { border: none; border-bottom: 3px solid transparent; border-radius: 0; background: none; padding: 8px 14px; }
+.tab.active { border-bottom-color: var(--accent); font-weight: 700; }
+
+main { padding: 18px 24px 40px; max-width: 1400px; }
+.panel[hidden] { display: none; }
+
+/* ----- 질문·설정 ----- */
+.ask { display: flex; gap: 8px; }
+.ask input { flex: 1; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.ask button { background: var(--accent); color: #fff; border-color: var(--accent); padding: 8px 18px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.chip { font-size: 13px; padding: 4px 10px; border-radius: 99px; }
+.chip.limit { border-style: dashed; }
+.chip.active { border-color: var(--accent); color: var(--accent); }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; font-size: 14px; margin-bottom: 10px; }
+.controls select { padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+.controls output { display: inline-block; width: 2ch; text-align: right; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: none; border-radius: 0; padding: 5px 12px; }
+.seg button.on { background: var(--accent); color: #fff; }
+.note { font-size: 13px; padding: 8px 10px; border-left: 3px solid var(--accent); background: var(--panel); margin-bottom: 10px; }
+
+/* ----- 두 열 ----- */
+.board { display: grid; grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr); align-items: start; }
+.col-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+.col-head h2 { font-size: 16px; margin: 0; }
+.scale { font-size: 12px; color: var(--dim); }
+.cards { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.cards .empty { color: var(--dim); padding: 16px; border: 1px dashed var(--line); border-radius: var(--radius); }
+.links { width: 64px; height: 100%; overflow: visible; }
+.links path { fill: none; stroke-width: 2; opacity: .75; }
+.links path.up { stroke: var(--up); }
+.links path.down { stroke: var(--down); }
+.links path.same { stroke: var(--same); stroke-dasharray: 3 3; }
+
+.card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 10px;
+  transition: box-shadow .2s;
+}
+.card.gold { border-color: var(--gold); box-shadow: inset 3px 0 0 var(--gold); }
+.card.flash { animation: flash 1.2s ease 1; }
+@keyframes flash { 0%, 100% { box-shadow: none; } 30% { box-shadow: 0 0 0 4px var(--accent); } }
+.card-top { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.rank { font-weight: 800; font-size: 14px; min-width: 1.6em; }
+.src { color: var(--dim); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.move { font-weight: 800; font-size: 13px; }
+.move.up { color: var(--up); }
+.move.down { color: var(--down); }
+.move.same { color: var(--same); }
+.gold-tag { font-size: 11px; color: var(--gold); border: 1px solid var(--gold); border-radius: 4px; padding: 0 4px; }
+.scorebar { display: flex; align-items: center; gap: 6px; margin: 4px 0; font-size: 12px; font-variant-numeric: tabular-nums; }
+.scorebar .track { flex: 1; height: 5px; background: var(--line); border-radius: 99px; overflow: hidden; }
+.scorebar .track i { display: block; height: 100%; background: var(--accent); }
+.txt { margin: 0; font-size: 14px; }
+mark.hl, .hl { background: var(--hl); color: inherit; border-radius: 2px; }
+.ev { text-decoration: underline 2px var(--accent); text-underline-offset: 3px; font-weight: 700; }
+.pending { padding: 18px; border: 1px dashed var(--line); border-radius: var(--radius); color: var(--dim); }
+
+.legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12px; color: var(--dim); margin: 12px 0; }
+
+/* ----- 점수 분포 ----- */
+.dist { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; margin: 8px 0 16px; }
+.dist-head { font-size: 13px; font-weight: 700; }
+#score-chart { width: 100%; height: 92px; display: block; }
+#score-chart text { font-size: 11px; fill: var(--dim); }
+#score-chart line { stroke: var(--line); }
+#score-chart circle.b { fill: var(--same); }
+#score-chart circle.a { fill: var(--accent); }
+#score-chart circle.gold { stroke: var(--gold); stroke-width: 3; opacity: 1; }  /* 정답 문단의 점 */
+
+/* ----- 답변 ----- */
+.answer-actions { display: flex; align-items: center; gap: 10px; margin: 6px 0 10px; }
+#btn-answer { background: var(--accent); color: #fff; border-color: var(--accent); }
+.answer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.answer { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; }
+.answer h3 { margin: 0 0 6px; font-size: 15px; }
+.answer h3 small { color: var(--dim); font-weight: 400; }
+.answer .text { white-space: pre-wrap; margin: 6px 0 0; }
+.think summary { font-size: 13px; color: var(--dim); cursor: pointer; }
+.notice { font-size: 13px; color: var(--down); }
+.cite { color: var(--accent); cursor: pointer; font-weight: 700; text-decoration: none; }
+.cite:hover { text-decoration: underline; }
+
+/* ----- 실험 탭 ----- */
+.table { border-collapse: collapse; margin-top: 14px; background: var(--panel); font-size: 14px; }
+.table th, .table td { border: 1px solid var(--line); padding: 6px 10px; text-align: center; }
+.table th:first-child, .table td:first-child { text-align: left; }
+.table .better { color: var(--up); font-weight: 700; }
+.table .worse { color: var(--down); font-weight: 700; }
+.qtable td.note { text-align: left; font-size: 12px; color: var(--dim); max-width: 420px; }
+
+/* ----- 내 문서 탭 ----- */
+.dropzone {
+  display: block; margin: 14px 0; padding: 30px; text-align: center; border: 2px dashed var(--line);
+  border-radius: var(--radius); color: var(--dim); cursor: pointer; background: var(--panel);
+}
+.dropzone.over { border-color: var(--accent); color: var(--accent); }
+
+@media (max-width: 760px) {
+  .top, main { padding-left: 16px; padding-right: 16px; }
+  .board { grid-template-columns: 1fr; gap: 16px; }
+  .links { display: none; }
+  .answer-grid { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
