@@ -48,10 +48,20 @@ def _prepare_reranker(engine: Engine) -> None:
         engine.hub.prepare_blocking(show_progress=True)
 
 
+class _InputError(Exception):
+    """사용자가 준 폴더가 잘못됨(없음·문서 없음) — 트레이스백 없이 한 줄로 알린다."""
+
+
 async def _build(engine: Engine, args, docs_dir: str | None):
     opts = ChunkOptions(args.chunking, not args.no_title_prefix)
     if docs_dir:
-        return await build_index("mine", load_folder(Path(docs_dir)), opts, engine.embedder, engine.settings.cache_dir)
+        try:
+            docs = load_folder(Path(docs_dir))
+        except ValueError as e:  # '폴더가 아닙니다: …'
+            raise _InputError(str(e)) from e
+        if not docs:  # 웹 API(/api/index)와 같은 문구
+            raise _InputError(".md 또는 .txt 문서를 찾지 못했습니다.")
+        return await build_index("mine", docs, opts, engine.embedder, engine.settings.cache_dir)
     return await build_index("samples", load_folder(engine.settings.samples_dir), opts, engine.embedder,
                              engine.settings.cache_dir)
 
@@ -80,7 +90,11 @@ async def _ask(args) -> int:
     settings, engine = _engine(args)
     try:
         _prepare_reranker(engine)
-        index = await _build(engine, args, args.docs)
+        try:
+            index = await _build(engine, args, args.docs)
+        except _InputError as e:
+            print(str(e), file=sys.stderr)
+            return 1
         result = await compare(engine, index, args.question, args.retriever, args.top_k)
         want_answer = args.answer or engine.mode == "mock"  # mock 은 답이 즉시 나오므로 늘 보여 준다
         answers = {}
@@ -154,7 +168,11 @@ async def _eval(args) -> int:
 async def _index(args) -> int:
     settings, engine = _engine(args)
     try:
-        index = await _build(engine, args, args.folder)
+        try:
+            index = await _build(engine, args, args.folder)
+        except _InputError as e:
+            print(str(e), file=sys.stderr)
+            return 1
         print(f"문서 {len({c.doc for c in index.chunks})}개 → 청크 {len(index.chunks)}개 ({index.options.strategy})")
         for c in index.chunks[: args.show]:
             print(f"  {c.chunk_id:<24} {_short(c.content, 60)}")
