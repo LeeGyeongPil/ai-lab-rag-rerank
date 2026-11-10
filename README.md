@@ -291,6 +291,8 @@ uv run rag-rerank ask "오늘 서울 날씨는 어때요?" --mock
 
 터미널에서는 `uv run rag-rerank index ~/notes --show 5`로 문서가 어떻게 잘리는지 먼저 볼 수 있고, `uv run rag-rerank ask "회의는 언제 하나요?" --docs ~/notes`처럼 `--docs`에 폴더를 주면 샘플 대신 그 문서에서 찾아 전/후를 비교합니다(`--docs`가 없으면 샘플 문서에서 찾습니다). 파일은 최대 200개, 파일당 1MB까지 읽습니다. 색인 파일(`.cache/index`)은 최대 16개까지 보관합니다.
 
+폴더가 없거나 `.md`/`.txt` 문서가 하나도 없으면 오류 글(traceback) 대신, 모드 안내 줄 다음에 `폴더가 아닙니다: <경로>` 또는 `.md 또는 .txt 문서를 찾지 못했습니다.` 한 줄을 stderr에 찍고 종료 코드 1로 끝납니다(v0.1.2).
+
 ## 어떻게 동작하나요?
 
 ```mermaid
