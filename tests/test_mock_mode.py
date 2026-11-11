@@ -36,7 +36,8 @@ def test_auto_falls_back_to_mock(monkeypatch):
     monkeypatch.setenv("OLLAMA_BASE_URL", "http://127.0.0.1:9")
     info = resolve_mode(Settings.from_env())
     assert info.mode == "mock"
-    assert "연결하지 못했습니다" in info.reason
+    assert "Could not connect to Ollama" in info.reason
+    assert "연결하지 못했습니다" in info.render("ko")[0]  # 같은 이유를 한국어로도 만들 수 있다
     assert any("ollama pull bge-m3" in h for h in info.hints)
 
 

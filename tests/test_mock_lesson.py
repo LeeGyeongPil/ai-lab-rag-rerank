@@ -102,7 +102,7 @@ def test_startup_lines_show_up_without_a_terminal(tmp_path):
     """stdout 이 터미널이 아닐 때(도커 로그·파이프)도 '화면: 주소' 줄이 서버가 떠 있는 동안 바로 보인다."""
     port = _free_port()
     env = {k: v for k, v in os.environ.items() if k != "PYTHONUNBUFFERED"}  # 버퍼링을 끄는 환경변수 없이도 보여야 한다
-    env.update(RAG_CACHE_DIR=str(tmp_path), RAG_NO_BROWSER="1")
+    env.update(RAG_CACHE_DIR=str(tmp_path), RAG_NO_BROWSER="1", RAG_LANG="en")  # 언어도 명시
     proc = subprocess.Popen([sys.executable, "-m", "rag_rerank", "serve", "--mock", "--no-browser", "--port", str(port)],
                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=env)
     out = b""
@@ -111,13 +111,13 @@ def test_startup_lines_show_up_without_a_terminal(tmp_path):
         with selectors.DefaultSelector() as sel:
             sel.register(proc.stdout, selectors.EVENT_READ)
             deadline = time.monotonic() + 20
-            while time.monotonic() < deadline and "화면:".encode() not in out and proc.poll() is None:
+            while time.monotonic() < deadline and "UI:".encode() not in out and proc.poll() is None:
                 if sel.select(timeout=0.5):
                     out += os.read(proc.stdout.fileno(), 4096)
         assert proc.poll() is None, "서버가 떠 있는 상태여야 한다"
         lines = out.decode().splitlines()
         assert lines[0].startswith("[MOCK]")
-        assert f"화면: http://127.0.0.1:{port}  (끝내려면 Ctrl+C)" in lines
+        assert f"UI: http://127.0.0.1:{port}  (Ctrl+C to quit)" in lines
     finally:
         proc.terminate()
         try:

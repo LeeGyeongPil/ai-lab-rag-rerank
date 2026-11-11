@@ -104,10 +104,12 @@ def test_ask_answer_help_matches_measured_time():
     from rag_rerank.cli import build_parser
     from rag_rerank.generator import OllamaGenerator
 
-    sub = next(a for a in build_parser()._actions if a.dest == "cmd")
+    sub = next(a for a in build_parser("ko")._actions if a.dest == "cmd")
     help_text = next(a.help for a in sub.choices["ask"]._actions if a.dest == "answer")
     assert "45~50초" not in help_text
     assert "2분" in help_text
+    sub_en = next(a for a in build_parser("en")._actions if a.dest == "cmd")
+    assert "2 minutes" in next(a.help for a in sub_en.choices["ask"]._actions if a.dest == "answer")
     # 도움말의 '2분'은 생성기의 시간 상한과 같은 값이어야 한다
     assert OllamaGenerator(None, "m").time_limit == 120.0
 

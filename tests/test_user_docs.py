@@ -45,7 +45,7 @@ def test_index_folder_and_no_evidence(tmp_path):
         import json
 
         end = [json.loads(x) for x in lines if '"side": "B"' in x and '"end"' in x][0]
-        assert end["text"] == NO_EVIDENCE == "문서에서 근거를 찾지 못했습니다."
+        assert end["text"] == NO_EVIDENCE == "문서에서 근거를 찾지 못했습니다."  # 답변 데이터라 언어와 무관하게 그대로
 
 
 def test_index_uploaded_files():

@@ -21,6 +21,15 @@ class NetworkBlocked(RuntimeError):
 
 
 @pytest.fixture(autouse=True)
+def fixed_language(monkeypatch):
+    """화면 언어를 영어로 고정한다: 개발자 셸의 LANG/LC_* 가 문구 비교 테스트를 흔들지 않게.
+    언어를 바꾸는 테스트는 monkeypatch.setenv 나 --lang 으로 명시적으로 덮어쓴다."""
+    for name in ("LC_ALL", "LC_MESSAGES", "LANG"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("RAG_LANG", "en")
+
+
+@pytest.fixture(autouse=True)
 def mock_and_offline(request, monkeypatch, tmp_path):
     if request.node.get_closest_marker("real"):
         yield
