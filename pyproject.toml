@@ -1,6 +1,6 @@
 [project]
 name = "ai-lab-rag-rerank"
-version = "0.1.2"
+version = "0.2.0"
 description = "Compare RAG retrieval before and after cross-encoder reranking on your own Korean documents (local, keyless, with a deterministic mock mode)."
 license = "MIT"
 readme = "README.md"
