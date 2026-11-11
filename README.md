@@ -1,36 +1,36 @@
-# RAG 리랭킹 전/후 비교 — 문서 검색이 어떻게 답변을 바꾸는지 눈으로 보기
+# RAG Reranking Before/After — See How Document Search Changes the Answer
 
-**한국어** | [English](README.en.md)
+**English** | [한국어](README.ko.md)
 
-> **English summary** — A local, keyless demo that walks through RAG (retrieval-augmented generation): chunking, embeddings, vector / keyword / hybrid search and a grounded answer. Its centerpiece is a before/after view that shows how a cross-encoder reranker reorders the retrieved passages and changes the final answer. Run it with `uv run rag-rerank`; without Ollama it falls back to a deterministic mock mode that needs no network and still reproduces the key before/after scene (with different numbers).
+A local, keyless demo that walks through RAG (retrieval-augmented generation): chunking, embeddings, vector / keyword / hybrid search and a grounded answer. Its centerpiece is a before/after view that shows how a cross-encoder reranker reorders the retrieved passages and changes the final answer. Run it with `uv run rag-rerank`; without Ollama it falls back to a deterministic mock mode that needs no network and still reproduces the key before/after scene (with different numbers).
 
-![질문을 고르면 '리랭킹 전' 목록의 6위 정답 카드가 '리랭킹 후' 1위로 미끄러져 올라가는 화면 녹화](docs/images/00-hero.gif)
-<sub>예시 질문을 누르면 왼쪽(리랭킹 전)에서 6위였던 정답 문단이 오른쪽(리랭킹 후)에서 1위로 올라갑니다. 초록 선은 올라간 카드, 빨간 선은 내려간 카드입니다. (실제 모드, 맥북 M3 16GB에서 촬영)</sub>
+![Screen recording: after picking a question, the correct card that was 6th in the "before reranking" list slides up to 1st place in the "after reranking" list](docs/images/00-hero.gif)
+<sub>Click an example question and the correct passage that was 6th on the left (before reranking) moves up to 1st on the right (after reranking). Green lines mark cards that moved up, red lines cards that moved down. (Real mode, recorded on a MacBook M3 16GB)</sub>
 
-## 한 줄 요약
+## One-line summary
 
-문서를 조각으로 잘라 검색하고, 찾은 조각을 근거로 답하는 **RAG**를 직접 돌려 보면서, **리랭킹(다시 줄 세우기)** 한 단계가 순위와 답변을 어떻게 바꾸는지 같은 화면에서 비교합니다.
+Run **RAG** yourself — split documents into pieces, search them, and answer from what was found — and compare on one screen how a single **reranking (re-sorting)** step changes the ranking and the answer.
 
-**이런 분께:**
-- "RAG가 뭔지는 들어 봤는데 속에서 무슨 일이 일어나는지 모르겠다"는 분
-- 검색 결과가 어딘가 엉뚱할 때 무엇을 손봐야 하는지 감을 잡고 싶은 분
-- 내 문서(`.md`, `.txt`)로 직접 실험해 보고 싶은 분
+**Who this is for:**
+- People who have heard of RAG but don't know what happens inside
+- People who want a feel for what to fix when search results look off
+- People who want to experiment with their own documents (`.md`, `.txt`)
 
-## 왜 알아야 하나요?
+## Why should you care?
 
-도서관에서 "중학생도 공유자전거를 탈 수 있나요?"를 사서에게 물었다고 해 봅시다. 사서는 서가에서 관련 있어 보이는 책 20권을 빠르게 뽑아 옵니다. 하지만 서두르다 보니 '공유자전거'라는 말이 많이 나온 이용 시간 안내가 맨 위에 놓이고, 정작 "만 13세 이상이면 누구나"라고 적힌 가입 안내는 6번째에 끼어 있습니다.
+Say you ask a librarian, "Can a middle schooler ride a shared bike?" The librarian quickly pulls 20 books from the shelves that look relevant. In the rush, though, the operating-hours notice that mentions "shared bike" many times ends up on top, while the sign-up guide that actually says "anyone aged 13 or older" sits at 6th.
 
-그래서 사서가 뽑아 온 20권을 질문과 나란히 펼쳐 놓고 **한 권씩 꼼꼼히 읽으며 다시 줄을 세웁니다.** 이 두 번째 단계가 리랭킹입니다. 첫 단계는 빠르지만 거칠고, 두 번째 단계는 느리지만 정확합니다. AI 모델이 답을 쓸 때는 맨 위 몇 개만 근거로 읽으므로, 정답이 6위에 있는지 1위에 있는지에 따라 답이 "모르겠습니다"가 되기도 하고 정확한 답이 되기도 합니다. 이 데모는 바로 그 차이를 보여 줍니다.
+So the librarian lays the 20 books out next to your question and **reads them one by one, carefully, and ranks them again.** That second step is reranking. The first step is fast but rough; the second is slow but accurate. When an AI model writes an answer it reads only the top few passages as evidence, so whether the right passage is 6th or 1st decides whether the answer is "I don't know" or a correct one. This demo shows exactly that difference.
 
-## 30초 만에 실행하기
+## Run it in 30 seconds
 
-준비물: `git`과 [uv](https://docs.astral.sh/uv/)(파이썬 실행·패키지 관리 도구). uv가 Python 3.14를 알아서 내려받으므로 Python을 따로 설치하지 않아도 됩니다. 실제 모델로 돌릴 때만 [Ollama](https://ollama.com)가 필요합니다. API 키는 필요 없습니다.
+You need `git` and [uv](https://docs.astral.sh/uv/) (a Python runner and package manager). uv downloads Python 3.14 for you, so you don't need to install Python separately. [Ollama](https://ollama.com) is needed only when running with real models. No API key is required.
 
 ```bash
-# uv 설치(한 번만). macOS·Linux:
+# Install uv (once). macOS / Linux:
 curl -LsSf https://astral.sh/uv/install.sh | sh
-# 또는 macOS: brew install uv / Windows(PowerShell): winget install --id=astral-sh.uv -e
-# git이 없다면 macOS: xcode-select --install / Ubuntu·Debian: sudo apt install git
+# or macOS: brew install uv / Windows(PowerShell): winget install --id=astral-sh.uv -e
+# If you don't have git: macOS: xcode-select --install / Ubuntu·Debian: sudo apt install git
 ```
 
 ```bash
@@ -39,24 +39,24 @@ cd ai-lab-rag-rerank
 uv run rag-rerank --mock
 ```
 
-터미널에 `화면: http://127.0.0.1:8765` 줄이 찍히고 브라우저가 열립니다. 화면 없는 서버·SSH·컨테이너처럼 브라우저가 열리지 않는 곳이면 그 주소를 직접 여세요. 브라우저를 자동으로 열지 않으려면 `uv run rag-rerank --mock --no-browser`(또는 `RAG_NO_BROWSER=1`)로 실행합니다. 도커 안에서 돌린다면 [자주 겪는 문제](#자주-겪는-문제)를 보세요.
+The terminal prints a `화면: http://127.0.0.1:8765` line ("화면" = "screen") and a browser opens. On a headless server, over SSH or in a container where no browser can open, open that address yourself. To keep the browser from opening automatically, run `uv run rag-rerank --mock --no-browser` (or set `RAG_NO_BROWSER=1`). If you run inside Docker, see [Troubleshooting](#troubleshooting).
 
-`--mock`은 **연습 모드**입니다. 네트워크도 모델도 쓰지 않고 가짜 임베딩·가짜 리랭커·가짜 답변(근거 문장을 그대로 옮김)으로 같은 결과를 항상 똑같이 만들어 줍니다. 가짜 모델은 샘플 문서에 맞춘 작은 '뜻 사전'(예: `중학생` ↔ `만 13세`)으로 같은 뜻 다른 표현을 흉내 내므로 **"리랭킹으로 정답이 올라오는 장면"은 mock에서도 그대로 보입니다.** 다만 점수·순위 숫자와 답변 문장은 실제 모드와 다르고 검색 품질을 뜻하지 않습니다(화면에 `MOCK` 배지가 붙습니다). mock에서 무엇이 나오는지는 [연습(mock) 모드로 따라 하기](#연습mock-모드로-따라-하기)에 실제 출력을 붙여 두었습니다.
+`--mock` is the **practice mode**. It uses no network and no model; fake embeddings, a fake reranker and a fake answer (which copies a sentence from the evidence verbatim) always produce exactly the same result. The fake models imitate "same meaning, different wording" with a small hand-made thesaurus tuned to the sample documents (for example `중학생` (middle schooler) ↔ `만 13세` (age 13 or older)), so **the scene where reranking lifts the correct passage is visible in mock mode too.** However, the score and rank numbers and the answer sentences differ from real mode and say nothing about search quality (a `MOCK` badge appears on screen). The actual mock output is pasted in [Follow along in practice (mock) mode](#follow-along-in-practice-mock-mode).
 
-실제 모델로 돌려 보려면 Ollama를 설치한 뒤:
+To try real models, install Ollama and then:
 
 ```bash
-ollama pull bge-m3      # 문서와 질문을 숫자로 바꾸는 임베딩 모델 (약 1.2GB)
-ollama pull qwen3:4b    # 답변을 쓰는 모델 (약 2.5GB)
-uv run rag-rerank       # Ollama와 모델이 보이면 자동으로 실제 모드
+ollama pull bge-m3      # embedding model that turns documents and questions into numbers (about 1.2GB)
+ollama pull qwen3:4b    # model that writes the answer (about 2.5GB)
+uv run rag-rerank       # automatically uses real mode when Ollama and the models are found
 ```
 
-처음 비교를 할 때 리랭커 모델(약 588MB)이 한 번 내려받아집니다. 의존성 설치와 리랭커 다운로드를 포함해 빈 상태에서 첫 비교 결과가 나오기까지 26초가 걸렸습니다(`scripts/first_run.sh`로 측정, 빠른 네트워크 기준, uv 패키지 캐시가 있는 상태). **이 문서의 스크린샷과 `[REAL]`로 시작하는 출력은 모두 실제 모드 결과입니다.** mock 모드 출력은 [아래 절](#연습mock-모드로-따라-하기)에 따로 있습니다.
+The first comparison downloads the reranker model (about 588MB) once. From an empty state, including dependency installation and the reranker download, the first comparison result appeared after 26 seconds (measured with `scripts/first_run.sh`, fast network, with the uv package cache warm). **Every screenshot in this document and every output starting with `[REAL]` is real-mode output.** Mock-mode output is in a [separate section below](#follow-along-in-practice-mock-mode).
 
-![화면 첫 모습: 1 예시 질문 버튼](docs/images/01-start.png)
-<sub>첫 화면. 위쪽 초록 배지는 현재 모드(REAL 또는 MOCK), 1번은 눌러 볼 수 있는 예시 질문 14개, 그 아래는 1단계 검색기(벡터·키워드·하이브리드) 선택입니다. 점선 테두리 버튼은 리랭킹이 힘들어하는 '한계 사례'입니다.</sub>
+![First screen: 1 example question buttons](docs/images/01-start.png)
+<sub>The first screen. The green badge at the top shows the current mode (REAL or MOCK), 1 marks the 14 example questions you can click, and below them you choose the stage-1 retriever (vector, keyword, hybrid). Buttons with dotted borders are "limit cases" that reranking struggles with.</sub>
 
-터미널만 쓰고 싶다면 같은 비교를 글자로도 볼 수 있습니다. 아래는 **실제 모드** 출력입니다(mock에서는 맨 끝에 `--mock`을 붙이고, 결과는 다음 절에 있습니다).
+If you prefer the terminal only, you can see the same comparison as text. The following is **real-mode** output (for mock, add `--mock` at the end; its result is in the next section).
 
 ```bash
 uv run rag-rerank ask "책을 늦게 돌려주면 벌금을 내나요?" --retriever keyword
@@ -85,13 +85,13 @@ uv run rag-rerank ask "책을 늦게 돌려주면 벌금을 내나요?" --retrie
 시간(ms): 임베딩 0 · 1단계 0 · 리랭킹 747
 ```
 
-(`...`는 지면 때문에 줄인 부분입니다. 키워드 검색 1단계에서 4위였던 정답 문단("연체료를 받지 않습니다")이 리랭킹 뒤 1위가 됩니다.)
+(The question means "Do I pay a fine if I return a book late?". `...` marks lines trimmed for space. The correct passage ("our library does not charge late fees"), 4th after keyword-search stage 1, becomes 1st after reranking.)
 
-## 연습(mock) 모드로 따라 하기
+## Follow along in practice (mock) mode
 
-Ollama가 없어도 `--mock`만으로 아래를 그대로 재현할 수 있습니다. 출력은 이 저장소에서 실제로 실행해 붙인 것이고, mock은 결정적이라 어느 컴퓨터에서든 같은 숫자가 나옵니다.
+Even without Ollama, `--mock` alone reproduces everything below. The output was pasted from a real run in this repository, and because mock is deterministic you get the same numbers on any computer.
 
-**1) 화면 띄우기**
+**1) Start the screen**
 
 ```bash
 uv run rag-rerank --mock --no-browser
@@ -102,9 +102,9 @@ uv run rag-rerank --mock --no-browser
 화면: http://127.0.0.1:8765  (끝내려면 Ctrl+C)
 ```
 
-브라우저에서 이 주소를 열고 첫 번째 예시 질문 `중학생도 공유자전거를 탈 수 있나요?`를 누르세요. 정답 문단(`만 13세 이상이면 누구나 …`)이 왼쪽(리랭킹 전) 6위에서 오른쪽(리랭킹 후) 1위로 올라가고 `▲5` 배지가 붙습니다. 이동은 실제 모드 스크린샷과 같고, 리랭커 점수는 0.4292로 실제 모드(0.0395)와 다릅니다. `답변 만들기`를 누르면 답변 A와 B가 곧바로 나옵니다.
+Open this address in a browser and click the first example question, `중학생도 공유자전거를 탈 수 있나요?` ("Can a middle schooler ride a shared bike too?"). The correct passage (`만 13세 이상이면 누구나 …`, "anyone aged 13 or older …") moves from 6th on the left (before reranking) to 1st on the right (after reranking) and gets a `▲5` badge. The movement is the same as in the real-mode screenshot, and the reranker score is 0.4292 versus 0.0395 in real mode. Click `답변 만들기` ("Create answers") and answers A and B appear immediately.
 
-**2) 터미널에서 같은 비교 보기**
+**2) See the same comparison in the terminal**
 
 ```bash
 uv run rag-rerank ask "중학생도 공유자전거를 탈 수 있나요?" --mock
@@ -148,15 +148,15 @@ uv run rag-rerank ask "중학생도 공유자전거를 탈 수 있나요?" --moc
   인용: [1]=bike-share-guide#0
 ```
 
-읽는 법:
-- 정답 문단이 1단계 6위에서 리랭킹 뒤 1위(`▲5`)로 올라옵니다. 이것이 이 데모의 핵심 장면입니다.
-- 답변 A는 리랭킹 전 1위인 엉뚱한 문단(자전거 배상)을 옮기고, 답변 B는 정답 문단의 `만 13세 이상` 문장을 `[1]`로 인용합니다. mock 답변은 모델이 쓰는 것이 아니라 1번 근거에서 질문과 가장 많이 겹치는 문장을 그대로 옮긴 것이라, 실제 모드처럼 "근거를 찾지 못했습니다"라고 하지 않고 틀린 근거를 그대로 옮깁니다. **근거가 틀리면 답도 틀린다**는 점은 같습니다.
-- "1위와 2위 차이"는 98% → 84%로 실제 모드(95% → 18%)보다 조금만 줄어듭니다. 가짜 리랭커 점수는 질문 표현이 얼마나 들어 있는지만 보기 때문에 1위를 크게 떼어 놓지 못합니다.
-- mock에서는 시간이 늘 0으로 찍힙니다(같은 입력 → 같은 출력을 지키려고).
+How to read it:
+- The correct passage rises from 6th in stage 1 to 1st after reranking (`▲5`). This is the core scene of the demo.
+- Answer A copies the off-topic top passage from before reranking (bike damage compensation), while answer B cites the `만 13세 이상` ("age 13 or older") sentence of the correct passage as `[1]`. The mock answer is not written by a model; it copies, from evidence 1, the sentence that overlaps most with the question. So unlike real mode, it does not say "no evidence found" and just copies the wrong evidence. The point is the same: **wrong evidence gives a wrong answer.**
+- The "gap between 1st and 2nd" shrinks only from 98% to 84%, less than real mode (95% → 18%). The fake reranker score only looks at how much of the question's wording is present, so it cannot separate the top result by much.
+- Time always prints as 0 in mock (to keep "same input → same output").
 
-앞 절의 키워드 검색 예시(`책을 늦게 돌려주면 벌금을 내나요?` `--retriever keyword --mock`)도 mock에서 정답이 4위 → 1위로 올라오고, 답변 B는 "근거에 따르면 우리 도서관은 연체료를 받지 않습니다. [1]"입니다(점수는 실제 모드와 다릅니다).
+The keyword-search example from the previous section (`책을 늦게 돌려주면 벌금을 내나요?` `--retriever keyword --mock`) also lifts the correct passage from 4th to 1st in mock, and answer B is "근거에 따르면 우리 도서관은 연체료를 받지 않습니다. [1]" ("According to the evidence, our library does not charge late fees. [1]") (scores differ from real mode).
 
-**3) 성적표**
+**3) Scorecard**
 
 ```bash
 uv run rag-rerank eval --mock
@@ -173,12 +173,12 @@ uv run rag-rerank eval --mock
 순서가 바뀐 (질문 × 검색기) 조합: 36
 ```
 
-숫자는 실제 모드([5단계](#5단계-성적표로-운이-아니었는지-확인하기))와 다릅니다. mock의 뜻 사전은 예시 질문에서 리랭킹 장면이 보이도록 **일부러 만든 것**이라, 이 표는 리랭킹이 효과가 있다는 증거가 아니라 화면 흐름을 익히는 연습용입니다. 리랭킹이 실제로 얼마나 도움이 되는지는 5단계의 실제 모드 성적표(하이브리드 hit@1 7/14 → 11/14)로 확인하세요. mock으로 띄운 웹 화면의 **실험** 탭도 위의 연습용 숫자를 보여 줍니다.
+The numbers differ from real mode ([step 5](#step-5-check-with-the-scorecard-that-it-was-not-luck)). The mock thesaurus was **made on purpose** so the reranking scene shows up in the example questions, so this table is not evidence that reranking works; it is practice for getting used to the screen flow. To see how much reranking really helps, check the real-mode scorecard in step 5 (hybrid hit@1 7/14 → 11/14). The **실험** ("Experiment") tab of the web screen opened with mock also shows the practice numbers above.
 
-**4) 한계 사례와 근거 부족**
+**4) Limit cases and insufficient evidence**
 
-- `책 반납이 한 달 넘게 밀리면 어떻게 되나요?`는 mock에서도 정답이 1단계 후보 8개 안에 없어 "정답 문단이 1단계 후보 안에 없습니다" 안내가 뜹니다([6단계](#6단계-리랭커가-못-고치는-경우-보기)와 같은 장면).
-- `오늘 서울 날씨는 어때요?`는 mock에서도 '근거 부족'이 됩니다. mock 리랭커는 가짜 점수에 맞춘 **고정 문턱값 0.1**을 씁니다(실제 모드의 0.01과 다르고, `RAG_MIN_RERANK_SCORE`의 영향을 받지 않습니다).
+- `책 반납이 한 달 넘게 밀리면 어떻게 되나요?` ("What happens if a book return is more than a month overdue?") also has no correct passage within the 8 stage-1 candidates in mock, so the notice "정답 문단이 1단계 후보 안에 없습니다" ("the correct passage is not among the stage-1 candidates") appears (the same scene as [step 6](#step-6-see-what-the-reranker-cannot-fix)).
+- `오늘 서울 날씨는 어때요?` ("What's the weather in Seoul today?") also ends in "insufficient evidence" in mock. The mock reranker uses a **fixed threshold of 0.1** matched to its fake scores (unlike 0.01 in real mode, and not affected by `RAG_MIN_RERANK_SCORE`).
 
 ```bash
 uv run rag-rerank ask "오늘 서울 날씨는 어때요?" --mock
@@ -197,155 +197,155 @@ uv run rag-rerank ask "오늘 서울 날씨는 어때요?" --mock
   인용: 없음
 ```
 
-(`...`는 지면 때문에 줄인 부분입니다. 근거 부족이면 답변 B만 모델을 부르지 않고 "문서에서 근거를 찾지 못했습니다."로 답합니다. 답변 A는 비교를 위해 리랭킹 전 근거로 그대로 답하므로, 관련 없는 문장을 옮깁니다.)
+(`...` marks lines trimmed for space. When evidence is insufficient, only answer B skips the model and replies "문서에서 근거를 찾지 못했습니다." ("No evidence was found in the documents."). For comparison, answer A still answers from the pre-reranking evidence as is, so it copies an unrelated sentence.)
 
-## 단계별로 따라 하기
+## Step by step
 
-> 이 절의 스크린샷·숫자·답변은 모두 **실제 모드**(Ollama + 리랭커 모델) 결과입니다. `--mock`으로 열었다면 화면 구조와 정답이 움직이는 방향은 같지만 점수·순위 숫자와 답변 문장은 다릅니다. mock 결과는 [바로 위 절](#연습mock-모드로-따라-하기)과 비교하세요.
+> Every screenshot, number and answer in this section comes from **real mode** (Ollama + reranker model). If you opened with `--mock`, the screen layout and the direction in which the correct answer moves are the same, but score and rank numbers and answer sentences differ. Compare with the mock results in the [section just above](#follow-along-in-practice-mock-mode).
 
-### 1단계. 예시 질문을 눌러 두 목록을 나란히 보기
+### Step 1. Click an example question to see the two lists side by side
 
-첫 번째 예시 질문 `중학생도 공유자전거를 탈 수 있나요?`를 누르세요. 검색기는 기본값인 **하이브리드**, 가져올 후보 수(top-k)는 8입니다. 1~2초 안에 왼쪽(리랭킹 전)과 오른쪽(리랭킹 후) 목록이 나타나고 카드가 제자리를 찾아 움직입니다.
+Click the first example question, `중학생도 공유자전거를 탈 수 있나요?` ("Can a middle schooler ride a shared bike too?"). The retriever is the default **hybrid**, and the number of candidates to fetch (top-k) is 8. Within 1–2 seconds the left (before reranking) and right (after reranking) lists appear and the cards slide into place.
 
-![비교 화면: 1 리랭킹 전 6위의 정답 카드, 2 리랭킹 후 1위의 정답 카드](docs/images/02-compare.png)
-<sub>1번 표시가 붙은 카드는 리랭킹 전 6위, 2번 표시가 붙은 카드는 같은 문단이 리랭킹 후 1위로 올라간 모습입니다. 카드 오른쪽 위의 `▲5`는 "5칸 올라갔다"는 뜻의 배지이고, 가운데 선이 같은 카드를 이어 줍니다.</sub>
+![Comparison screen: 1 the correct card at 6th before reranking, 2 the correct card at 1st after reranking](docs/images/02-compare.png)
+<sub>The card marked 1 was 6th before reranking; the card marked 2 is the same passage after it moved up to 1st. The `▲5` badge at the top right of a card means "moved up 5 places", and the line in the middle connects the same card.</sub>
 
-읽는 법:
-- 왼쪽은 1단계 검색이 매긴 순서, 오른쪽은 리랭커가 다시 매긴 순서입니다.
-- `▲5`는 5칸 올라감, `▼1`은 1칸 내려감, `–`는 그대로입니다.
-- 금색 테두리와 `정답` 표시는 예시 질문에 한해, 미리 정해 둔 정답 문단에 붙습니다. 내 문서에는 정답을 모르므로 표시되지 않습니다.
-- **두 열의 점수는 척도가 다릅니다.** 왼쪽은 하이브리드의 RRF 점수(0.028~0.033 사이에 몰려 있음), 오른쪽은 리랭커 점수(0~1)입니다. 막대 길이를 열 사이에서 비교하지 마세요.
+How to read it:
+- The left is the order assigned by stage-1 search, the right is the order the reranker assigned again.
+- `▲5` means up 5 places, `▼1` down 1 place, `–` unchanged.
+- The gold border and the `정답` ("correct answer") label appear only for the example questions, on the passage fixed in advance as correct. With your own documents the answer is unknown, so nothing is marked.
+- **The scores in the two columns are on different scales.** The left is the hybrid RRF score (clustered between 0.028 and 0.033), the right is the reranker score (0 to 1). Don't compare bar lengths across columns.
 
-### 2단계. 근거 문장 확인하기
+### Step 2. Check the evidence sentence
 
-각 카드 안에서 **노란 칠**은 질문과 글자가 겹치는 표현이고, **밑줄 + 굵은 글씨**는 리랭커가 "이 문장이 질문에 가장 가깝다"고 고른 문장입니다.
+Inside each card, the **yellow fill** marks wording that shares characters with the question, and **underline + bold** marks the sentence the reranker picked as "closest to the question."
 
-![정답 카드를 확대한 모습: '만 13세 이상이면 누구나 가입할 수 있고'에 밑줄](docs/images/03-highlight.png)
-<sub>리랭킹 후 1위 카드. 질문에는 '공유자전거'도 '탈 수'도 나오지만, 리랭커는 글자가 겹치지 않는 "만 13세 이상이면 누구나 가입할 수 있고"를 근거 문장으로 골랐습니다. 리랭커 점수는 0.0395입니다.</sub>
+![Enlarged correct card: the sentence '만 13세 이상이면 누구나 가입할 수 있고' is underlined](docs/images/03-highlight.png)
+<sub>The 1st-place card after reranking. The question contains both "공유자전거" (shared bike) and "탈 수" (can ride), but the reranker picked "만 13세 이상이면 누구나 가입할 수 있고" ("anyone aged 13 or older can sign up, and"), which shares no characters, as the evidence sentence. The reranker score is 0.0395.</sub>
 
-리랭커 점수가 0.0395처럼 작아도 1위일 수 있습니다. 이 점수는 "정답일 확률"이 아니라 후보끼리 비교하는 상대 점수입니다. 순서를 믿으시고 절댓값은 크게 신경 쓰지 않으셔도 됩니다.
+A reranker score as small as 0.0395 can still be 1st. The score is not "the probability of being correct" but a relative score for comparing candidates with each other. Trust the order and don't worry much about the absolute value.
 
-### 3단계. 1위가 얼마나 뚜렷한지 보기
+### Step 3. See how clear the top result is
 
-비교 화면 아래에는 점수 분포 그림이 있습니다. 위 줄은 1단계 점수, 아래 줄은 리랭커 점수이고 점 하나가 후보 하나입니다. 두 줄은 점수의 뜻(척도)이 달라서, **각 줄의 1위 점수를 오른쪽 끝(`1위`)에 두고 나머지를 그 비율로** 그렸습니다. 금색 테두리 점이 정답 문단입니다.
+Below the comparison screen is a score-distribution chart. The top row is the stage-1 score and the bottom row is the reranker score; each dot is one candidate. The two rows use different score meanings (scales), so **each row's top score is placed at the right end (`1위`, "1st") and the rest are drawn in proportion to it.** The dot with a gold border is the correct passage.
 
-![점수 분포: 1단계 줄은 점들이 오른쪽 끝에 붙어 있고, 리랭커 줄은 1위 점만 오른쪽 끝에 있고 나머지는 왼쪽에 모여 있다](docs/images/04-distribution.png)
-<sub>1단계(하이브리드) 줄에서는 8개 점이 1위 가까이에 몰려 있어 1위와 나머지가 거의 구분되지 않습니다. 리랭커 줄에서는 1위(금색 테두리의 정답)만 오른쪽 끝에 있고 나머지는 멀리 떨어져 있습니다. 그림 아래 문장은 "1위와 2위 차이 — 2위 점수가 1위의 몇 %인가: 1단계 95% → 리랭커 18%"라고 요약합니다.</sub>
+![Score distribution: in the stage-1 row the dots cluster at the right end, in the reranker row only the top dot is at the right end and the rest are gathered on the left](docs/images/04-distribution.png)
+<sub>In the stage-1 (hybrid) row, the 8 dots are bunched near 1st, so 1st barely stands out from the rest. In the reranker row only 1st (the correct one, with the gold border) is at the right end and the others are far away. The sentence under the chart summarizes: "1위와 2위 차이 — 2위 점수가 1위의 몇 %인가: 1단계 95% → 리랭커 18%" ("gap between 1st and 2nd — 2nd's score as a percentage of 1st's: stage 1 95% → reranker 18%").</sub>
 
-읽는 법: **"2위 점수가 1위의 몇 %인가"가 작을수록 1위가 확실히 앞선 것**입니다. 1단계에서는 2위가 1위의 95%라서 사실상 동점에 가깝고, 리랭커를 거치면 18%로 줄어 정답이 나머지와 뚜렷이 갈립니다. 비슷한 점수끼리는 순서가 사소한 차이로 뒤바뀌기 쉬우므로, 1단계 점수만으로는 1위를 믿기 어렵다는 것이 리랭킹이 필요한 이유입니다. 터미널 `ask` 결과에도 같은 내용이 "1위와 2위 차이" 줄로 나옵니다.
+How to read it: **the smaller "2nd's score as a percentage of 1st's" is, the more clearly 1st leads.** In stage 1, 2nd is 95% of 1st, close to a tie; after the reranker it shrinks to 18% and the correct passage separates clearly from the rest. With near-equal scores the order flips easily over trivial differences, so stage-1 scores alone make the top spot hard to trust, and that is why reranking is needed. The same information appears in the terminal `ask` result as the "1위와 2위 차이" line.
 
-### 4단계. 답변 A와 B 비교하기
+### Step 4. Compare answers A and B
 
-`답변 만들기`를 누르면 **같은 질문에 근거만 바꿔서** 모델이 두 번 답합니다. 답변 A는 리랭킹 전 상위 3개, 답변 B는 리랭킹 후 상위 3개를 근거로 읽습니다. A가 끝나야 B가 시작됩니다.
+Click `답변 만들기` ("Create answers") and the model answers twice for **the same question with only the evidence swapped.** Answer A reads the top 3 before reranking as evidence, and answer B reads the top 3 after reranking. B starts only after A finishes.
 
-![답변 A는 '문서에서 근거를 찾지 못했습니다', 답변 B는 인용 [1]이 붙은 정확한 답](docs/images/05-answers.png)
-<sub>답변 A(리랭킹 전 근거)는 "문서에서 근거를 찾지 못했습니다.", 답변 B(리랭킹 후 근거)는 "중학생이 만 13세 이상이면 가입할 수 있으나, 만 13세 이상 18세 미만은 보호자 동의가 필요합니다. [1]".</sub>
+![Answer A: '문서에서 근거를 찾지 못했습니다', answer B: a correct answer with citation [1]](docs/images/05-answers.png)
+<sub>Answer A (pre-reranking evidence) says "문서에서 근거를 찾지 못했습니다." ("No evidence was found in the documents."), and answer B (post-reranking evidence) says "중학생이 만 13세 이상이면 가입할 수 있으나, 만 13세 이상 18세 미만은 보호자 동의가 필요합니다. [1]" ("A middle schooler can sign up if aged 13 or older, but ages 13 to under 18 need a guardian's consent. [1]").</sub>
 
-정답 문단이 상위 3개 밖(6위)에 있던 A는 근거를 못 찾았다고 답하고, 상위 1위가 된 B는 정확하게 답하며 `[1]`처럼 **어느 근거에서 나온 말인지** 번호를 붙입니다. `생각 239토큰`은 이 모델이 답하기 전에 속으로 생각한 분량입니다(내용은 접어 둡니다).
+A, whose correct passage was outside the top 3 (6th), says it found no evidence; B, where it became 1st, answers correctly and attaches a number such as `[1]` showing **which evidence the statement came from**. `생각 239토큰` ("thought 239 tokens") is how much this model thought to itself before answering (the content is collapsed).
 
-답변은 느립니다. 이 맥북(M3 16GB)에서 A와 B를 합쳐 약 4분이 걸렸습니다(Ollama를 다른 작업과 함께 쓰던 때의 값이며, 답 하나에 보통 수십 초~2분이 걸립니다). 비교 화면은 먼저 뜨고, 답변은 버튼을 눌러야 시작되며 `중지` 버튼으로 끊을 수 있습니다. 더 빠른 답변이 필요하면 [직접 바꿔 보기](#직접-바꿔-보기)의 4번을 보세요.
+Answers are slow. On this MacBook (M3 16GB), A and B together took about 4 minutes (a value from when Ollama was shared with other work; one answer usually takes tens of seconds to 2 minutes). The comparison screen appears first, answers start only when you click the button, and the `중지` ("Stop") button can interrupt them. If you need faster answers, see item 4 of [Try changing things yourself](#try-changing-things-yourself).
 
-### 5단계. 성적표로 "운이 아니었는지" 확인하기
+### Step 5. Check with the scorecard that it was not luck
 
-한 질문에서 잘된 것이 우연일 수 있으니, **실험** 탭에서 14개 예시 질문 모두를 3가지 검색기로 돌려 리랭킹 전/후를 채점합니다(약 14초).
+Something working on one question may be chance, so in the **실험** ("Experiment") tab all 14 example questions are run through the 3 retrievers and scored before/after reranking (about 14 seconds).
 
-![성적표: 키워드 5/14→10/14, 벡터 9/14→11/14, 하이브리드 7/14→11/14](docs/images/06-eval.png)
-<sub>위 표는 검색기별 요약, 아래 표는 질문별로 정답 문단의 순위가 어떻게 바뀌었는지입니다. 초록은 개선, 빨강 `밖 → 밖`은 1단계가 후보에도 못 올린 경우입니다.</sub>
+![Scorecard: keyword 5/14→10/14, vector 9/14→11/14, hybrid 7/14→11/14](docs/images/06-eval.png)
+<sub>The upper table summarizes by retriever; the lower table shows, per question, how the rank of the correct passage changed. Green is improvement; a red `밖 → 밖` ("outside → outside") means stage 1 did not even bring it into the candidates.</sub>
 
-- **hit@1**: 정답이 1위인 질문이 몇 개인가(14개 중).
-- **MRR**: 정답 순위의 역수를 평균한 값. 1위면 1, 2위면 0.5, 후보 밖이면 0입니다.
-- **순서 바뀐 질문**: 리랭킹 뒤 후보 8개의 순서가 한 칸이라도 달라진 질문 수(14개 중). 정답이 올라갔는지와는 상관없이 "리랭커가 순서를 손댔는가"만 셉니다. 14에 가까울수록 리랭커가 1단계와 다른 기준으로 읽는다는 뜻이고, 그 변화가 좋은 쪽이었는지는 hit@1·MRR로 봅니다.
+- **hit@1**: how many questions have the correct answer at 1st (out of 14).
+- **MRR**: the average of the reciprocal of the correct rank. 1 for 1st, 0.5 for 2nd, 0 if outside the candidates.
+- **Questions whose order changed**: the number of questions (out of 14) where the order of the 8 candidates differs by even one place after reranking. It counts only "did the reranker touch the order", regardless of whether the correct answer moved up. The closer to 14, the more the reranker reads by a different standard than stage 1; whether the change was for the better is judged by hit@1 and MRR.
 
-| 1단계 검색기 | hit@1 전 → 후 | MRR 전 → 후 | 순서 바뀐 질문 |
+| Stage-1 retriever | hit@1 before → after | MRR before → after | Questions reordered |
 |---|---|---|---|
-| 키워드 | 5/14 → 10/14 | 0.48 → 0.75 | 14 |
-| 벡터 | 9/14 → 11/14 | 0.77 → 0.86 | 14 |
-| 하이브리드 | 7/14 → 11/14 | 0.64 → 0.82 | 13 |
+| Keyword | 5/14 → 10/14 | 0.48 → 0.75 | 14 |
+| Vector | 9/14 → 11/14 | 0.77 → 0.86 | 14 |
+| Hybrid | 7/14 → 11/14 | 0.64 → 0.82 | 13 |
 
-(실제 모드, top-k 8, 문단 청킹 + 제목 붙이기, 14개 질문 기준. Ollama 모델 버전이 바뀌면 숫자가 달라질 수 있습니다.)
+(Real mode, top-k 8, paragraph chunking + title prefix, 14 questions. Numbers may change if the Ollama model versions change.)
 
-여기서 알 수 있는 것 두 가지가 있습니다. 첫째, 어떤 검색기로 시작해도 리랭킹을 거치면 좋아집니다. 둘째, **하이브리드가 항상 이기는 것은 아닙니다.** 리랭킹 전에는 하이브리드(7/14)가 벡터 단독(9/14)보다 낮았습니다. 서로 다른 두 검색기를 섞는다고 저절로 좋아지지는 않으며, 샘플 문서가 작아서 생긴 결과일 수도 있습니다.
+Two things can be learned here. First, whichever retriever you start with, reranking improves it. Second, **hybrid does not always win.** Before reranking, hybrid (7/14) was lower than vector alone (9/14). Mixing two different retrievers does not automatically make things better, and this may also be a result of the small sample documents.
 
-### 6단계. 리랭커가 못 고치는 경우 보기
+### Step 6. See what the reranker cannot fix
 
-점선 테두리 예시 질문은 일부러 어렵게 만든 한계 사례입니다. `책 반납이 한 달 넘게 밀리면 어떻게 되나요?`를 눌러 보세요. 문서에는 "30일"이라고 쓰여 있어서 '한 달'과 글자가 안 맞습니다.
+The dotted-border example questions are deliberately hard limit cases. Click `책 반납이 한 달 넘게 밀리면 어떻게 되나요?` ("What happens if a book return is more than a month overdue?"). The documents say "30일" (30 days), so it doesn't match "한 달" (a month) in characters.
 
-![한계 사례: 정답 문단이 1단계 후보 안에 없다는 안내가 뜬다](docs/images/08-limit.png)
-<sub>1번 안내문은 "정답 문단이 1단계 후보 안에 없습니다. 리랭커는 후보 안에서만 순서를 바꾸므로 살릴 수 없습니다."라고 알려 줍니다. 후보 8개 안에 정답("장기 연체가 30일을 …")이 없어서, 순서가 아무리 바뀌어도 정답이 올라오지 않습니다.</sub>
+![Limit case: a notice says the correct passage is not among the stage-1 candidates](docs/images/08-limit.png)
+<sub>Notice 1 says "정답 문단이 1단계 후보 안에 없습니다. 리랭커는 후보 안에서만 순서를 바꾸므로 살릴 수 없습니다." ("The correct passage is not among the stage-1 candidates. The reranker only reorders within the candidates, so it cannot rescue it."). The correct passage ("장기 연체가 30일을 …", "a long overdue of 30 days …") is not among the 8 candidates, so no matter how the order changes, the correct one does not come up.</sub>
 
-**리랭커는 후보 안에서만 순서를 바꿉니다.** 1단계가 정답을 놓치면 리랭킹으로 되살릴 수 없습니다. 이럴 때는 top-k를 늘리거나, 검색기를 바꾸거나, 문서를 자르는 방식을 바꿔 보세요.
+**The reranker only reorders within the candidates.** If stage 1 misses the correct passage, reranking cannot bring it back. In that case, raise top-k, change the retriever, or change how documents are split.
 
-### 7단계. 문서에 답이 없으면 "근거 부족"
+### Step 7. When the documents have no answer: "insufficient evidence"
 
-문서에 없는 질문(`오늘 서울 날씨는 어때요?`)을 해 보세요.
+Ask a question that the documents don't cover (`오늘 서울 날씨는 어때요?`, "What's the weather in Seoul today?").
 
-![근거 부족: 리랭커 최고 점수가 문턱값 0.01보다 낮아 답변 B는 답을 지어내지 않는다는 안내](docs/images/09-no-evidence.png)
-<sub>1번 안내문은 "리랭커 최고 점수가 문턱값(0.01)보다 낮아 '근거 부족'으로 판단했습니다 — 답변 B는 답을 지어내지 않습니다." 2번 카드는 1위 후보인데도 점수가 0.0001에 그칩니다.</sub>
+![Insufficient evidence: the reranker's top score is below the 0.01 threshold, and a notice says answer B will not make up an answer](docs/images/09-no-evidence.png)
+<sub>Notice 1 says "리랭커 최고 점수가 문턱값(0.01)보다 낮아 '근거 부족'으로 판단했습니다 — 답변 B는 답을 지어내지 않습니다." ("The reranker's top score is below the threshold (0.01), so this was judged 'insufficient evidence' — answer B will not make up an answer."). Card 2 is the top candidate, yet its score is only 0.0001.</sub>
 
-리랭커 최고 점수가 문턱값보다 낮으면 '근거 부족'으로 판단하고, **답변 B는 모델을 부르지 않고** "문서에서 근거를 찾지 못했습니다."라고 답합니다. 관련 없는 근거를 억지로 끼워 맞춘 답을 막는 안전장치입니다. 답변 A는 비교를 위해 그대로 리랭킹 전 상위 3개를 근거로 모델에 묻습니다(모델이 스스로 근거가 없다고 답할 수도, 엉뚱한 근거로 답할 수도 있습니다). 문턱값은 실제 모드에서 기본 0.01이고 `RAG_MIN_RERANK_SCORE`로 바꿀 수 있습니다. mock 모드는 가짜 점수에 맞춘 고정값 0.1을 씁니다. 리랭커 점수는 "관련 있는가"를 후보끼리 상대 비교하는 데도 쓰이지만, 이렇게 "아예 관련 없다"를 잡아내는 데도 쓸 수 있습니다.
+If the reranker's top score is below the threshold, it is judged "insufficient evidence", and **answer B does not call the model** and replies "문서에서 근거를 찾지 못했습니다." ("No evidence was found in the documents."). This is a safeguard against answers forced out of unrelated evidence. Answer A still asks the model with the pre-reranking top 3 as evidence, for comparison (the model may say on its own that there is no evidence, or may answer from off-topic evidence). In real mode the threshold defaults to 0.01 and can be changed with `RAG_MIN_RERANK_SCORE`. Mock mode uses a fixed 0.1 matched to its fake scores. The reranker score is also used to compare "is it relevant" among candidates, but it can equally be used to catch "not relevant at all" like this.
 
-### 8단계. 내 문서로 해 보기
+### Step 8. Try it with your own documents
 
-**내 문서** 탭에서 폴더 경로를 적거나 파일을 끌어다 놓으면 그 문서가 색인됩니다. 색인이 끝나면 자동으로 비교 탭으로 돌아가 "내 문서"가 선택됩니다.
+In the **내 문서** ("My documents") tab, type a folder path or drag files in, and those documents are indexed. When indexing finishes, the view automatically returns to the comparison tab with "내 문서" ("My documents") selected.
 
-![내 문서 탭: 1 폴더 경로 입력, 2 파일 끌어다 놓기](docs/images/07-docs.png)
-<sub>1번은 폴더 경로 입력(예: `~/notes`), 2번은 `.md`/`.txt` 파일을 끌어다 놓는 곳입니다. 문서는 이 컴퓨터 밖으로 나가지 않습니다.</sub>
+![My documents tab: 1 enter a folder path, 2 drag files in](docs/images/07-docs.png)
+<sub>1 is the folder path input (for example `~/notes`), and 2 is where you drag `.md`/`.txt` files. Documents never leave this computer.</sub>
 
-터미널에서는 `uv run rag-rerank index ~/notes --show 5`로 문서가 어떻게 잘리는지 먼저 볼 수 있고, `uv run rag-rerank ask "회의는 언제 하나요?" --docs ~/notes`처럼 `--docs`에 폴더를 주면 샘플 대신 그 문서에서 찾아 전/후를 비교합니다(`--docs`가 없으면 샘플 문서에서 찾습니다). 파일은 최대 200개, 파일당 1MB까지 읽습니다. 색인 파일(`.cache/index`)은 최대 16개까지 보관합니다.
+In the terminal, `uv run rag-rerank index ~/notes --show 5` first shows how your documents get split, and giving a folder to `--docs`, as in `uv run rag-rerank ask "회의는 언제 하나요?" --docs ~/notes` ("When is the meeting?"), searches those documents instead of the samples and compares before/after (without `--docs` it searches the sample documents). It reads up to 200 files, up to 1MB per file. The index files (`.cache/index`) are kept up to 16.
 
-폴더가 없거나 `.md`/`.txt` 문서가 하나도 없으면 오류 글(traceback) 대신, 모드 안내 줄 다음에 `폴더가 아닙니다: <경로>` 또는 `.md 또는 .txt 문서를 찾지 못했습니다.` 한 줄을 stderr에 찍고 종료 코드 1로 끝납니다(v0.1.2).
+If the folder does not exist or contains no `.md`/`.txt` documents, instead of an error trace (traceback) it prints the mode notice line followed by one line to stderr, `폴더가 아닙니다: <경로>` ("not a folder: <path>") or `.md 또는 .txt 문서를 찾지 못했습니다.` ("no .md or .txt documents found."), and exits with exit code 1 (v0.1.2).
 
-## 어떻게 동작하나요?
+## How does it work?
 
 ```mermaid
 flowchart LR
-    subgraph prep["준비 (문서마다 한 번)"]
-        D[문서 .md/.txt] --> C[청킹: 조각으로 자르기]
-        C --> E[임베딩: 숫자 목록으로 바꾸기]
-        E --> S[(SQLite + sqlite-vec 색인)]
-        C --> B[BM25 단어 색인]
+    subgraph prep["Prepare (once per document)"]
+        D["Documents .md/.txt"] --> C["Chunking: cut into pieces"]
+        C --> E["Embedding: turn into a list of numbers"]
+        E --> S[("SQLite + sqlite-vec index")]
+        C --> B["BM25 word index"]
     end
-    subgraph ask["질문할 때"]
-        Q[질문] --> QE[질문 임베딩]
-        QE --> V[벡터 검색]
-        Q --> K[키워드 검색 BM25]
-        V --> H[하이브리드 RRF]
+    subgraph ask["When you ask"]
+        Q[Question] --> QE["Question embedding"]
+        QE --> V["Vector search"]
+        Q --> K["Keyword search BM25"]
+        V --> H["Hybrid RRF"]
         K --> H
-        H --> T[후보 top-k = 리랭킹 전]
-        T --> R[리랭커: 질문과 조각을 한 쌍으로 읽고 점수]
-        R --> A2[리랭킹 후]
-        T --> GA[답변 A: 전 상위 3개를 근거로]
-        A2 --> GB[답변 B: 후 상위 3개를 근거로]
+        H --> T["Candidates top-k = before reranking"]
+        T --> R["Reranker: reads question and piece as a pair and scores"]
+        R --> A2["After reranking"]
+        T --> GA["Answer A: grounded on top 3 before"]
+        A2 --> GB["Answer B: grounded on top 3 after"]
     end
     S --> V
     B --> K
 ```
 
-1. **청킹(chunking)**: 문서 전체를 한 번에 모델에 넣을 수 없고, 전체를 하나의 숫자로 요약하면 세부가 뭉개집니다. 그래서 문서를 문단 같은 작은 조각(청크)으로 자릅니다. 이 데모는 문단 / 재귀 분할(200자) / 제목 단위 중에서 고를 수 있고, 조각 앞에 `[문서 > 절 제목]`을 붙여 맥락을 보강하는 옵션이 있습니다.
-2. **임베딩(embedding)**: 글을 뜻이 비슷하면 가까워지는 숫자 목록(벡터)으로 바꿉니다. "반납"과 "돌려주기"는 글자가 다르지만 숫자는 가깝습니다. 이 데모는 `bge-m3`를 씁니다.
-3. **벡터 검색**: 질문도 같은 방식으로 숫자로 바꾸고, 숫자가 가장 가까운(코사인 유사도가 높은) 조각을 찾습니다. 뜻으로 찾기 때문에 표현이 달라도 찾지만, 고유한 이름·숫자는 놓치기도 합니다.
-4. **키워드 검색(BM25)**: 질문과 같은 글자가 많이 겹치는 조각을 찾는 고전적 방법입니다. 한국어는 "반납하면/반납한/반납을"처럼 조사가 붙어서 띄어쓰기 단위로는 잘 안 맞기 때문에, 이 데모는 **글자를 2글자씩 겹쳐 자른 토큰**(예: `반납하면` → `반납`·`납하`·`하면`)으로 BM25를 계산합니다. 드문 토큰이 많이 겹칠수록, 짧은 조각일수록 점수가 높습니다. (SQLite의 `trigram`은 3글자 단위라 `연체`처럼 2글자 검색어를 아예 못 찾아서 직접 구현했고, 테스트로 그 함정을 확인합니다.)
-5. **하이브리드 = RRF**: 벡터 점수(−1~1)와 BM25 점수(상한 없음)는 척도가 달라 더할 수 없습니다. 그래서 **점수는 버리고 순위만** 씁니다. 각 검색기에서 20개씩 받아 조각마다 `1 / (60 + 순위)`를 모두 더합니다(60은 RRF 논문의 관례값). 양쪽에서 모두 상위권이면 점수가 높아집니다. 점수 차이가 작은 것이 정상입니다.
-6. **리랭킹(cross-encoder)**: 1~5는 질문과 조각을 **따로** 숫자로 만들어 비교합니다(빠르지만 거침). 리랭커는 질문과 조각을 **한 쌍으로 붙여서 함께 읽고** 0~1 점수를 냅니다(느리지만 정확). 후보 8~20개만 읽기 때문에 부담이 적습니다. 이 데모는 `bge-reranker-v2-m3`를 ONNX 형식(int8)으로 CPU에서 돌려 순서를 다시 매깁니다. 같은 모델로 문장마다 점수를 매겨 밑줄 칠 근거 문장도 고릅니다.
-7. **근거 기반 답변(grounded answer)**: 모델에게 "주어진 근거만 쓰고, 쓴 근거 번호를 `[1]`처럼 붙이고, 근거에 답이 없으면 없다고 하라"고 시킵니다. 그래서 답이 근거에서 나왔는지 확인할 수 있습니다.
+1. **Chunking**: A whole document can't be fed to a model at once, and summarizing a whole document into a single number blurs the details. So the document is cut into small pieces (chunks) such as paragraphs. This demo lets you choose among paragraph / recursive split (200 characters) / by heading, and has an option to prepend `[document > section title]` to each piece for extra context.
+2. **Embedding**: Text is turned into a list of numbers (a vector) such that similar meaning means closeness. "반납" (return) and "돌려주기" (giving back) differ in characters but their numbers are close. This demo uses `bge-m3`.
+3. **Vector search**: The question is turned into numbers the same way, and the pieces whose numbers are closest (highest cosine similarity) are found. Because it searches by meaning it finds pieces even when the wording differs, but it can miss unique names and numbers.
+4. **Keyword search (BM25)**: The classic method of finding pieces that share many characters with the question. Korean attaches particles, as in "반납하면/반납한/반납을", so splitting on spaces matches poorly. This demo therefore computes BM25 on **tokens made by cutting characters into overlapping 2-character units** (for example `반납하면` → `반납`·`납하`·`하면`). The more rare tokens overlap, and the shorter the piece, the higher the score. (SQLite's `trigram` works on 3-character units, so it cannot find a 2-character query like `연체` (overdue) at all; that is why this was implemented by hand, and a test checks this pitfall.)
+5. **Hybrid = RRF**: The vector score (−1 to 1) and the BM25 score (unbounded) are on different scales and can't be added. So **the scores are discarded and only ranks are used.** Take 20 results from each retriever and add `1 / (60 + rank)` for every piece (60 is the conventional value from the RRF paper). A piece ranked high in both gets a high score. Small score differences are normal.
+6. **Reranking (cross-encoder)**: Steps 1–5 turn the question and the piece into numbers **separately** and compare them (fast but rough). The reranker **joins the question and the piece into one pair, reads them together** and outputs a 0–1 score (slow but accurate). It reads only 8–20 candidates, so the burden is small. This demo runs `bge-reranker-v2-m3` in ONNX format (int8) on the CPU to reorder. The same model also scores each sentence to pick the evidence sentence to underline.
+7. **Grounded answer**: The model is told to "use only the given evidence, attach the numbers of the evidence you used like `[1]`, and say so if the evidence has no answer." That way you can check whether the answer came from the evidence.
 
-## 코드 둘러보기
+## Code tour
 
-처음 읽는다면 `pipeline.py` → `retrieve.py` → `reranker.py` 순서를 추천합니다.
+If you are reading it for the first time, we recommend the order `pipeline.py` → `retrieve.py` → `reranker.py`.
 
-| 파일 | 하는 일 |
+| File | What it does |
 |---|---|
-| [`src/rag_rerank/pipeline.py`](src/rag_rerank/pipeline.py) | 같은 후보를 "전/후"로 두 번 줄 세워 한 결과에 담는 `compare()` |
-| [`src/rag_rerank/retrieve.py`](src/rag_rerank/retrieve.py) | 벡터 / 키워드 / 하이브리드(RRF) 1단계 검색 |
-| [`src/rag_rerank/reranker.py`](src/rag_rerank/reranker.py) | 리랭커 모델 내려받기와 점수 계산(ONNX, CPU) |
-| [`src/rag_rerank/bm25.py`](src/rag_rerank/bm25.py) | 한글 2글자 토큰 BM25 |
-| [`src/rag_rerank/chunking.py`](src/rag_rerank/chunking.py) | 문단 / 재귀 / 제목 단위로 자르기 |
-| [`src/rag_rerank/generator.py`](src/rag_rerank/generator.py) | 근거 기반 답변 만들기(Ollama 또는 mock) |
-| [`src/rag_rerank/mocklex.py`](src/rag_rerank/mocklex.py) | mock 모드 전용 '뜻 사전'(같은 뜻 다른 표현을 손으로 이어 둔 표) |
-| [`src/rag_rerank/server.py`](src/rag_rerank/server.py), [`static/`](src/rag_rerank/static) | 웹 화면과 API |
-| [`tests/`](tests) | 모의 모드 테스트(`uv run pytest -q -m 'not real'`) |
+| [`src/rag_rerank/pipeline.py`](src/rag_rerank/pipeline.py) | `compare()`, which ranks the same candidates twice, "before/after", into one result |
+| [`src/rag_rerank/retrieve.py`](src/rag_rerank/retrieve.py) | Stage-1 search: vector / keyword / hybrid (RRF) |
+| [`src/rag_rerank/reranker.py`](src/rag_rerank/reranker.py) | Reranker model download and score calculation (ONNX, CPU) |
+| [`src/rag_rerank/bm25.py`](src/rag_rerank/bm25.py) | BM25 on Hangul 2-character tokens |
+| [`src/rag_rerank/chunking.py`](src/rag_rerank/chunking.py) | Splitting by paragraph / recursive / heading |
+| [`src/rag_rerank/generator.py`](src/rag_rerank/generator.py) | Writing grounded answers (Ollama or mock) |
+| [`src/rag_rerank/mocklex.py`](src/rag_rerank/mocklex.py) | Mock-mode-only "thesaurus" (a hand-made table linking different wordings of the same meaning) |
+| [`src/rag_rerank/server.py`](src/rag_rerank/server.py), [`static/`](src/rag_rerank/static) | Web screen and API |
+| [`tests/`](tests) | Mock-mode tests (`uv run pytest -q -m 'not real'`) |
 
-### 핵심 1. 같은 후보를 두 번 줄 세우기 (`pipeline.py`)
+### Key 1. Ranking the same candidates twice (`pipeline.py`)
 
 ```python
 order = sorted(range(len(hits)), key=lambda j: (-scores[j], j))  # 동점이면 1단계 순서 유지
@@ -353,9 +353,9 @@ for new_rank, j in enumerate(order, start=1):
     move = before[j]["rank"] - new_rank  # 양수 = 올라감
 ```
 
-1단계가 가져온 후보(`hits`)를 리랭커 점수 순으로 다시 정렬할 뿐, 새 후보를 찾아오지는 않습니다. 그래서 리랭커는 후보 밖의 정답을 살릴 수 없습니다.
+It only re-sorts the candidates (`hits`) fetched in stage 1 by reranker score; it never fetches new candidates. That is why the reranker cannot rescue a correct answer that is outside the candidates. (Comments in the code: "on a tie, keep the stage-1 order" and "positive = moved up".)
 
-### 핵심 2. 순위만으로 합치는 RRF (`retrieve.py`)
+### Key 2. RRF, merging by rank alone (`retrieve.py`)
 
 ```python
 def rrf(rankings, k=60):
@@ -366,9 +366,9 @@ def rrf(rankings, k=60):
     return sorted(fused.items(), key=lambda h: (-h[1], h[0]))
 ```
 
-척도가 다른 두 점수를 더하는 대신 "몇 위였나"만 씁니다. `k`가 클수록 1위와 10위의 차이를 덜 크게 봅니다.
+Instead of adding two scores on different scales, it uses only "what rank was it". The larger `k` is, the less the gap between 1st and 10th counts.
 
-### 핵심 3. (질문, 조각)을 한 쌍으로 읽는 리랭커 (`reranker.py`)
+### Key 3. A reranker that reads (question, piece) as a pair (`reranker.py`)
 
 ```python
 enc = self.tok.encode_batch([(query, t) for t in texts[i : i + batch]])  # (질문, 청크) 쌍
@@ -376,70 +376,70 @@ enc = self.tok.encode_batch([(query, t) for t in texts[i : i + batch]])  # (질�
 out += [round(float(1 / (1 + np.exp(-x))), 4) for x in logits]  # 시그모이드 → 0~1
 ```
 
-질문과 조각을 한 입력으로 붙여 모델에 넣고, 나온 값을 시그모이드로 0~1로 바꿉니다. 이 계열 모델은 빈칸 채움용 글자(패딩)의 번호가 1이어야 점수가 맞습니다(0으로 두면 점수가 틀어집니다). 그래서 `pad_id=1`로 설정했습니다.
+The question and piece are joined into one input and fed to the model, and the output is turned into 0–1 with a sigmoid. For this family of models the padding (filler token) id must be 1 for scores to be right (leaving it at 0 skews the scores). That is why `pad_id=1` is set. (Comments in the code: "(question, chunk) pair" and "sigmoid → 0 to 1".)
 
-## 용어 사전
+## Glossary
 
-| 용어 | 뜻 |
+| Term | Meaning |
 |---|---|
-| RAG | Retrieval-Augmented Generation. 질문과 관련된 문서 조각을 먼저 찾아 모델에게 근거로 주고 답하게 하는 방식 |
-| 청킹 / 청크 | 문서를 작은 조각으로 자르는 일 / 그 조각 |
-| 임베딩 | 글을 뜻이 비슷하면 가까워지는 숫자 목록으로 바꾼 것 |
-| 벡터 검색 | 숫자 목록끼리의 거리로 뜻이 가까운 조각을 찾는 검색 |
-| 코사인 유사도 | 두 숫자 목록이 가리키는 방향이 얼마나 같은지(−1~1). 클수록 비슷 |
-| BM25 | 질문과 겹치는 단어가 많고 드문 단어일수록 높은 점수를 주는 키워드 검색 공식 |
-| 하이브리드 검색 | 벡터 검색과 키워드 검색을 함께 쓰는 방식 |
-| RRF | Reciprocal Rank Fusion. 여러 검색 결과를 점수 대신 순위로 합치는 방법 |
-| top-k | 1단계에서 후보로 가져올 조각 수(k개) |
-| 리랭킹 | 1단계 후보를 더 정교한 모델로 다시 줄 세우는 일 |
-| 크로스 인코더 | 질문과 조각을 한 쌍으로 붙여 함께 읽고 점수를 내는 모델. 리랭커의 한 종류 |
-| 근거 기반 답변 | 주어진 근거만으로 답하고 근거 번호를 붙이는 답변 |
-| hit@1 | 정답 조각이 1위인 질문의 수(또는 비율) |
-| MRR | 정답 순위의 역수를 평균한 값. 1위 1, 2위 0.5, 3위 0.33 … |
-| ONNX / int8 | 모델을 다른 환경에서도 돌리기 쉽게 만든 파일 형식 / 숫자를 작게 줄여 작고 빠르게 만든 방식 |
-| Ollama | 내 컴퓨터에서 AI 모델을 내려받아 돌려 주는 프로그램 |
-| mock(연습) 모드 | 가짜 모델로 같은 결과를 항상 똑같이 만드는 모드. 작은 뜻 사전으로 리랭킹 장면을 흉내 내지만 숫자는 실제 모드와 다름 |
+| RAG | Retrieval-Augmented Generation. First find the document pieces related to the question, give them to the model as evidence, and have it answer |
+| Chunking / chunk | Cutting a document into small pieces / one such piece |
+| Embedding | Text turned into a list of numbers such that similar meaning means closeness |
+| Vector search | Search that finds pieces close in meaning by the distance between lists of numbers |
+| Cosine similarity | How much two lists of numbers point in the same direction (−1 to 1). Larger means more similar |
+| BM25 | A keyword-search formula that gives higher scores to pieces sharing many words with the question, especially rare words |
+| Hybrid search | Using vector search and keyword search together |
+| RRF | Reciprocal Rank Fusion. A way to merge several search results by rank instead of score |
+| top-k | The number of pieces (k) fetched as candidates in stage 1 |
+| Reranking | Re-sorting the stage-1 candidates with a more precise model |
+| Cross-encoder | A model that joins the question and the piece into one pair, reads them together and outputs a score. A kind of reranker |
+| Grounded answer | An answer that uses only the given evidence and attaches evidence numbers |
+| hit@1 | The number (or ratio) of questions whose correct piece is at 1st |
+| MRR | The average of the reciprocal of the correct rank. 1st is 1, 2nd is 0.5, 3rd is 0.33 … |
+| ONNX / int8 | A file format that makes a model easier to run in other environments / a way of shrinking numbers to make it small and fast |
+| Ollama | A program that downloads AI models and runs them on your own computer |
+| mock (practice) mode | A mode that always produces the same result with fake models. It imitates the reranking scene with a small thesaurus, but the numbers differ from real mode |
 
-## 직접 바꿔 보기
+## Try changing things yourself
 
-1. **내 문서 넣기** — `내 문서` 탭에서 폴더를 색인 → 비교 탭에서 "내 문서" 선택 → 평소 찾던 질문을 던져 보세요. 정답 표시는 없지만 근거 문장 밑줄과 두 목록의 차이는 그대로 보입니다.
-2. **top-k 줄이기** — 비교 화면의 `top-k` 슬라이더를 8에서 4로 → 정답이 후보 밖으로 밀려나면 비교 화면에 "정답 문단이 1단계 후보 안에 없습니다" 안내가 뜹니다. `실험` 탭에서 성적표를 다시 계산하면 `밖 → 밖`으로도 보입니다. 반대로 `책 반납이 한 달 넘게 …`에서 top-k를 20까지 올려 보세요. 후보가 늘면 정답이 후보에 들어올 수도 있습니다.
-3. **제목 붙이기와 청킹 방식 바꾸기** — `제목 붙이기`를 끄고 `실험` 탭에서 성적표를 다시 계산해 보세요. 이 샘플에서는 제목을 붙였을 때 하이브리드 hit@1이 11/14, 끄면 10/14였습니다. `청킹`을 `재귀 분할(200자)`로 바꾸면 조각이 어떻게 달라지고 순위가 어떻게 변하는지도 볼 수 있습니다.
-4. **빠른 답변 모델로 바꾸기** — `qwen3:4b`는 답하기 전에 수백~천여 토큰을 생각해서 느립니다. 생각 단계가 없는 모델을 받아 `RAG_CHAT_MODEL=<모델 이름> uv run rag-rerank`로 실행해 보세요(모델에 따라 답 형식이 달라질 수 있습니다).
-5. **근거 부족 문턱값 조절**(실제 모드 전용, mock은 고정값 0.1) — `RAG_MIN_RERANK_SCORE=0.05 uv run rag-rerank`처럼 문턱값을 올리면 "근거 부족"이 더 자주 나오고, 낮추면 덜 나옵니다. 문서와 조금만 관련 있는 질문으로 시험해 보세요.
-6. **검색기 바꿔 가며 같은 질문 비교하기** — `벡터` / `키워드` / `하이브리드`를 번갈아 눌러 보며 1단계 순위가 어떻게 다른지, 리랭킹 뒤에는 얼마나 비슷해지는지 보세요.
+1. **Bring your own documents** — Index a folder in the `내 문서` ("My documents") tab → choose "내 문서" in the comparison tab → ask a question you usually search for. There is no answer marker, but the evidence-sentence underline and the difference between the two lists are still visible.
+2. **Reduce top-k** — Move the `top-k` slider on the comparison screen from 8 to 4 → if the correct passage is pushed out of the candidates, the comparison screen shows the notice "정답 문단이 1단계 후보 안에 없습니다" ("the correct passage is not among the stage-1 candidates"). Recomputing the scorecard in the `실험` ("Experiment") tab also shows it as `밖 → 밖`. Conversely, raise top-k up to 20 on `책 반납이 한 달 넘게 …` ("a book return more than a month overdue …"). With more candidates, the correct passage may enter them.
+3. **Turn off the title prefix and change the chunking method** — Turn off `제목 붙이기` ("Prepend titles") and recompute the scorecard in the `실험` tab. With this sample, hybrid hit@1 was 11/14 with titles and 10/14 without. Changing `청킹` ("Chunking") to `재귀 분할(200자)` ("recursive split (200 characters)") also shows how the pieces change and how the ranks move.
+4. **Switch to a faster answer model** — `qwen3:4b` is slow because it thinks for several hundred to a thousand tokens before answering. Pull a model without a thinking stage and run `RAG_CHAT_MODEL=<model name> uv run rag-rerank` (the answer format may differ by model).
+5. **Adjust the insufficient-evidence threshold** (real mode only; mock is fixed at 0.1) — Raising the threshold, as in `RAG_MIN_RERANK_SCORE=0.05 uv run rag-rerank`, makes "insufficient evidence" appear more often, and lowering it makes it appear less. Test with questions that are only slightly related to the documents.
+6. **Compare the same question across retrievers** — Click `벡터` ("Vector") / `키워드` ("Keyword") / `하이브리드` ("Hybrid") in turn to see how the stage-1 ranks differ and how similar they become after reranking.
 
-설정할 수 있는 환경변수는 [`.env.example`](.env.example)에 모두 있습니다.
+All the environment variables you can set are in [`.env.example`](.env.example).
 
-## 자주 겪는 문제
+## Troubleshooting
 
-| 증상 | 원인 | 해결 |
+| Symptom | Cause | Fix |
 |---|---|---|
-| 화면 위에 `MOCK` 배지가 붙고 숫자가 이 문서와 다릅니다 | `--mock`으로 실행했거나, Ollama가 꺼져 있거나 모델을 받지 않았습니다. mock 숫자는 [연습(mock) 모드로 따라 하기](#연습mock-모드로-따라-하기)에 있습니다 | `ollama pull bge-m3`, `ollama pull qwen3:4b` 후 `--mock` 없이 `uv run rag-rerank`를 다시 실행. 화면 위 안내와 `uv run rag-rerank doctor`가 빠진 항목을 알려 줍니다 |
-| 포트가 이미 사용 중이라고 나옵니다 | 8765를 다른 프로그램이 쓰고 있습니다 | `uv run rag-rerank serve --port 8766` |
-| 첫 비교가 오래 걸리고 진행 막대가 보입니다 | 리랭커 모델(약 588MB)을 처음 내려받는 중입니다 | 끝날 때까지 기다리세요. 실패하면 `다시 시도` 버튼(최대 3회)을 누르거나 `uv run rag-rerank doctor --download`로 미리 받으세요 |
-| 답변이 나오기까지 몇 분이 걸립니다 | 생각 전용 모델이라 답하기 전에 많이 생각합니다 | 4단계 설명 참고. 120초를 넘기면 대신 근거 문장을 그대로 옮긴 답이 안내와 함께 나옵니다 |
-| 실제 모드인데 `ReadTimeout` 같은 오류가 답변 칸에 뜹니다 | Ollama가 다른 작업으로 바쁘거나 모델을 메모리에 올리는 중입니다 | 잠시 뒤 `답변 만들기`를 다시 누르세요 |
-| 화면이 열리지 않고 `Invalid host header`(400)가 나옵니다 | 보안을 위해 주소가 `127.0.0.1` 또는 `localhost`가 아니면 거절합니다 | `http://127.0.0.1:8765` 또는 `http://localhost:8765`로 접속하세요 |
-| 브라우저가 자동으로 열리지 않습니다 | 화면 없는 서버·SSH·컨테이너에서는 열 브라우저가 없습니다 | 터미널에 찍힌 `화면: http://127.0.0.1:8765` 주소를 직접 여세요. 자동 열기를 끄려면 `--no-browser`(또는 `RAG_NO_BROWSER=1`) |
-| 같은 와이파이의 다른 기기(폰·노트북)에서 열고 싶습니다 | 기본값은 이 컴퓨터의 `127.0.0.1`/`localhost` 접속만 받습니다 | 믿을 수 있는 네트워크에서만 `uv run rag-rerank serve --host 0.0.0.0`으로 실행하세요. 터미널에는 이 컴퓨터에서 열 주소(`http://127.0.0.1:8765`)가 찍히고, 다른 기기에서는 `http://<이 컴퓨터 IP>:8765`로 접속합니다. 이 경우 주소 검사가 꺼지므로 공용 와이파이에서는 쓰지 마세요 |
-| 도커 컨테이너·가상 머신 안에서 실행했더니 바깥 브라우저에서 열리지 않습니다 | 기본값은 컨테이너 자신(`127.0.0.1`)의 접속만 받고, 컨테이너 포트도 바깥에 열려 있지 않습니다 | 컨테이너를 `docker run -p 8765:8765 …`처럼 포트를 열어 띄우고, 안에서 `uv run rag-rerank serve --mock --host 0.0.0.0 --no-browser`로 실행한 뒤 바깥에서 `http://127.0.0.1:8765`를 여세요(가상 머신이면 포트 전달 설정 후 같은 방법) |
-| `uv`가 Python 3.14가 없다고 합니다 | 이 프로젝트는 3.14 이상을 요구합니다 | `uv python install 3.14` |
-| 첫 다운로드 때 "unauthenticated requests" 경고가 나옵니다 | 허깅페이스 토큰 없이 받는 경우의 안내입니다 | 정상입니다. 토큰 없이도 받아집니다 |
-| 같은 질문인데 숫자가 문서와 조금 다릅니다 | Ollama 모델 버전이 달라지면 임베딩이 달라집니다 | 이 문서의 숫자는 `bge-m3`(ID 790764642607), `qwen3:4b`(ID 359d7dd4bcda) 기준입니다 |
+| A `MOCK` badge shows at the top of the screen and the numbers differ from this document | It was run with `--mock`, or Ollama is off or the models were not pulled. Mock numbers are in [Follow along in practice (mock) mode](#follow-along-in-practice-mock-mode) | Run `ollama pull bge-m3` and `ollama pull qwen3:4b`, then run `uv run rag-rerank` again without `--mock`. The notice at the top of the screen and `uv run rag-rerank doctor` tell you what is missing |
+| It says the port is already in use | Another program is using 8765 | `uv run rag-rerank serve --port 8766` |
+| The first comparison takes long and a progress bar shows | The reranker model (about 588MB) is being downloaded for the first time | Wait until it finishes. If it fails, click the `다시 시도` ("Retry") button (up to 3 times) or pre-download with `uv run rag-rerank doctor --download` |
+| Answers take several minutes | It is a thinking model, so it thinks a lot before answering | See the step 4 explanation. If it exceeds 120 seconds, an answer that copies the evidence sentence as is appears instead, with a notice |
+| In real mode, an error like `ReadTimeout` shows in the answer box | Ollama is busy with other work or is loading the model into memory | Click `답변 만들기` ("Create answers") again after a moment |
+| The screen won't open and shows `Invalid host header` (400) | For security, addresses other than `127.0.0.1` or `localhost` are rejected | Open `http://127.0.0.1:8765` or `http://localhost:8765` |
+| The browser does not open automatically | On a headless server, over SSH or in a container there is no browser to open | Open the `화면: http://127.0.0.1:8765` address printed in the terminal yourself. To turn off auto-open, use `--no-browser` (or `RAG_NO_BROWSER=1`) |
+| I want to open it from another device (phone, laptop) on the same Wi-Fi | By default only `127.0.0.1`/`localhost` connections from this computer are accepted | Only on a trusted network, run `uv run rag-rerank serve --host 0.0.0.0`. The terminal prints the address to open on this computer (`http://127.0.0.1:8765`); from other devices connect to `http://<this computer's IP>:8765`. The address check is turned off in this case, so don't use it on public Wi-Fi |
+| I ran it inside a Docker container or virtual machine and it won't open from the outside browser | By default it accepts only connections from the container itself (`127.0.0.1`), and the container port is not open to the outside either | Start the container with the port open, like `docker run -p 8765:8765 …`, run `uv run rag-rerank serve --mock --host 0.0.0.0 --no-browser` inside, then open `http://127.0.0.1:8765` from the outside (for a virtual machine, set up port forwarding and do the same) |
+| `uv` says Python 3.14 is not available | This project requires 3.14 or later | `uv python install 3.14` |
+| An "unauthenticated requests" warning appears on the first download | This is the notice shown when downloading without a Hugging Face token | Normal. The download works without a token |
+| Same question, but the numbers differ slightly from this document | Embeddings change when the Ollama model version changes | The numbers in this document are based on `bge-m3` (ID 790764642607) and `qwen3:4b` (ID 359d7dd4bcda) |
 
-## 더 알아보기
+## Further reading
 
-- [Ollama 임베딩 API](https://docs.ollama.com/api/embed) · [Ollama 생각(thinking) 기능](https://docs.ollama.com/capabilities/thinking)
-- [BGE-M3 모델 카드](https://huggingface.co/BAAI/bge-m3) · [BGE Reranker v2 m3 모델 카드](https://huggingface.co/BAAI/bge-reranker-v2-m3) · [ONNX 변환본](https://huggingface.co/onnx-community/bge-reranker-v2-m3-ONNX)
-- [Sentence Transformers: 검색 후 리랭킹(Retrieve & Re-Rank)](https://sbert.net/examples/sentence_transformer/applications/retrieve_rerank/README.html) · [Cross-Encoder 사용법](https://sbert.net/docs/cross_encoder/usage/usage.html)
-- [Reciprocal Rank Fusion 논문 (Cormack 외, SIGIR 2009)](https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf)
-- [sqlite-vec 문서](https://alexgarcia.xyz/sqlite-vec/python.html) · [SQLite FTS5](https://www.sqlite.org/fts5.html)
-- [ONNX Runtime 파이썬 시작하기](https://onnxruntime.ai/docs/get-started/with-python.html)
-- [Chroma: 청킹 전략 평가](https://www.trychroma.com/research/evaluating-chunking)
+- [Ollama embedding API](https://docs.ollama.com/api/embed) · [Ollama thinking feature](https://docs.ollama.com/capabilities/thinking)
+- [BGE-M3 model card](https://huggingface.co/BAAI/bge-m3) · [BGE Reranker v2 m3 model card](https://huggingface.co/BAAI/bge-reranker-v2-m3) · [ONNX conversion](https://huggingface.co/onnx-community/bge-reranker-v2-m3-ONNX)
+- [Sentence Transformers: Retrieve & Re-Rank](https://sbert.net/examples/sentence_transformer/applications/retrieve_rerank/README.html) · [Cross-Encoder usage](https://sbert.net/docs/cross_encoder/usage/usage.html)
+- [Reciprocal Rank Fusion paper (Cormack et al., SIGIR 2009)](https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf)
+- [sqlite-vec docs](https://alexgarcia.xyz/sqlite-vec/python.html) · [SQLite FTS5](https://www.sqlite.org/fts5.html)
+- [ONNX Runtime: Get started with Python](https://onnxruntime.ai/docs/get-started/with-python.html)
+- [Chroma: Evaluating chunking strategies](https://www.trychroma.com/research/evaluating-chunking)
 
-## 라이선스
+## License
 
-- **코드: MIT** — [LICENSE](LICENSE)
-- **샘플 문서: CC0(퍼블릭 도메인 헌정)** — [samples/LICENSE](samples/LICENSE). 도서관·공유자전거 안내문은 모두 직접 지어낸 가상의 글입니다.
-- **모델은 이 저장소에 포함되어 있지 않고 실행할 때 내려받으며, 각각의 라이선스를 따릅니다.** 임베딩 `bge-m3`는 MIT, 리랭커 `bge-reranker-v2-m3`(ONNX 변환본 포함)는 Apache-2.0, 답변 모델 `Qwen3`는 Apache-2.0입니다. 자세한 조건은 각 모델 카드를 확인하세요.
+- **Code: MIT** — [LICENSE](LICENSE)
+- **Sample documents: CC0 (public domain dedication)** — [samples/LICENSE](samples/LICENSE). The library and shared-bike guides are all made-up fictional texts.
+- **The models are not included in this repository; they are downloaded at run time and follow their own licenses.** The embedding model `bge-m3` is MIT, the reranker `bge-reranker-v2-m3` (including the ONNX conversion) is Apache-2.0, and the answer model `Qwen3` is Apache-2.0. See each model card for the detailed terms.
