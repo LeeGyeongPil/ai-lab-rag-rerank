@@ -14,6 +14,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from .i18n import RagError
+
 HEADING = re.compile(r"^(#{1,6})\s+(.*)$")
 SENTENCE_END = re.compile(r"(?<=[.!?。])\s+")
 STRATEGIES = ("paragraph", "recursive", "heading")
@@ -114,7 +116,7 @@ def _with_overlap(pieces: list[str], overlap: int) -> list[str]:
 
 def chunk_document(doc: Document, opts: ChunkOptions) -> list[Chunk]:
     if opts.strategy not in STRATEGIES:
-        raise ValueError(f"알 수 없는 청킹 방식: {opts.strategy}")
+        raise RagError("unknown_chunking", name=opts.strategy)
     texts: list[tuple[str | None, str]] = []
     for title, paras in _sections(doc.text):
         if opts.strategy == "paragraph":

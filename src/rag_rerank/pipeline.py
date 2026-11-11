@@ -23,6 +23,7 @@ from . import retrieve
 from .config import ModeInfo, Settings
 from .embedder import MockEmbedder, OllamaEmbedder
 from .generator import NO_EVIDENCE, MockGenerator, OllamaGenerator
+from .i18n import notice
 from .highlight import best_sentence, overlap_spans, split_sentences
 from .reranker import MockReranker, RerankerHub
 from .store import Index
@@ -188,7 +189,7 @@ async def answer_stream(engine: Engine, index: Index, result: dict, side: str) -
     """답변 A(전 상위 3개) 또는 B(후 상위 3개)를 이벤트로 흘려보낸다. 마지막은 {'type': 'end', ...}."""
     ids = result["answer_evidence"][side]
     if ids is None:  # 리랭커가 아직 준비되지 않음
-        yield {"type": "notice", "text": "리랭커 모델을 준비하는 중이라 답변 B는 잠시 뒤에 만들 수 있습니다."}
+        yield notice("reranker_wait")
         yield {"type": "end", "text": "", "citations": [], "evidence": [], "cached": False}
         return
     if not ids or (side == "B" and result["no_evidence"]):  # 근거가 없으면 모델을 부르지 않는다

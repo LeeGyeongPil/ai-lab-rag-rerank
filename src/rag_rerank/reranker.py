@@ -21,6 +21,7 @@ import numpy as np
 
 from .bm25 import grams
 from .config import RERANKER_FILES, RERANKER_REPO, Settings
+from .i18n import RagError
 from .mocklex import concepts
 
 
@@ -182,7 +183,7 @@ class RerankerHub:
             self.attempts += 1
             self._prepare(show_progress)
         if self._model is None:
-            raise RuntimeError(f"리랭커 준비 실패: {self.error}")
+            raise RagError("reranker_failed", error=self.error)
         return self._model
 
     def _prepare(self, show_progress: bool) -> None:

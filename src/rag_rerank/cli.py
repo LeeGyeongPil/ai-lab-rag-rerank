@@ -6,6 +6,9 @@
   uv run rag-rerank eval --mock --json    성적표(hit@1·MRR 전/후)
   uv run rag-rerank index 내폴더          내 문서 폴더 색인해 보기
   uv run rag-rerank doctor               실제 모드 준비 상태 진단
+  uv run rag-rerank --lang ko ...        화면 언어(en|ko). 없으면 RAG_LANG > LC_ALL > LC_MESSAGES > LANG, 한국어가 아니면 영어
+
+사람이 읽는 문구는 모두 i18n.py 의 표에 있다. 이 파일은 문구 id 와 값만 넘긴다.
 """
 
 from __future__ import annotations
@@ -25,6 +28,8 @@ from pathlib import Path
 from .chunking import STRATEGIES, ChunkOptions
 from .config import RERANKER_REPO, Settings, has_model, probe_ollama, resolve_mode
 from .evaluate import evaluate, load_questions
+from .generator import NO_EVIDENCE
+from .i18n import LANGS, RagError, os_error_to_rag_error, render_notice, resolve_lang, t
 from .pipeline import Engine, answer_stream, compare, create_engine
 from .retrieve import RETRIEVERS
 from .store import build_index, connect, load_folder
@@ -33,34 +38,28 @@ from .store import build_index, connect, load_folder
 # ---------- 공통 ----------
 def _engine(args) -> tuple[Settings, Engine]:
     settings = Settings.from_env()
-    mode_info = resolve_mode(settings, force_mock=getattr(args, "mock", False))
-    print(f"[{mode_info.mode.upper()}] {mode_info.reason}", file=sys.stderr)
-    for hint in mode_info.hints:
+    mode_info = resolve_mode(settings, force_mock=getattr(args, "mock", False), lang=args.lang)
+    reason, hints = mode_info.render(args.lang)
+    print(f"[{mode_info.mode.upper()}] {reason}", file=sys.stderr)
+    for hint in hints:
         print(f"  · {hint}", file=sys.stderr)
     return settings, create_engine(settings, mode_info)
 
 
-def _prepare_reranker(engine: Engine) -> None:
+def _prepare_reranker(engine: Engine, lang: str) -> None:
     """실제 모드: 리랭커가 없으면 지금 내려받는다(터미널 진행 막대, 첫 실행에 한 번 약 588MB)."""
     if engine.hub is not None and engine.hub.get() is None:
         if engine.hub.local_paths() is None:
-            print(f"리랭커 모델 내려받는 중: {RERANKER_REPO} (약 588MB, 처음 한 번만)", file=sys.stderr)
+            print(t(lang, "cli.model_download", repo=RERANKER_REPO), file=sys.stderr)
         engine.hub.prepare_blocking(show_progress=True)
-
-
-class _InputError(Exception):
-    """사용자가 준 폴더가 잘못됨(없음·문서 없음) — 트레이스백 없이 한 줄로 알린다."""
 
 
 async def _build(engine: Engine, args, docs_dir: str | None):
     opts = ChunkOptions(args.chunking, not args.no_title_prefix)
     if docs_dir:
-        try:
-            docs = load_folder(Path(docs_dir))
-        except ValueError as e:  # '폴더가 아닙니다: …'
-            raise _InputError(str(e)) from e
-        if not docs:  # 웹 API(/api/index)와 같은 문구
-            raise _InputError(".md 또는 .txt 문서를 찾지 못했습니다.")
+        docs = load_folder(Path(docs_dir))  # 잘못된 폴더·읽기 실패는 RagError — main() 이 한 줄로 알린다
+        if not docs:  # 웹 API(/api/index)와 같은 오류
+            raise RagError("no_docs")
         return await build_index("mine", docs, opts, engine.embedder, engine.settings.cache_dir)
     return await build_index("samples", load_folder(engine.settings.samples_dir), opts, engine.embedder,
                              engine.settings.cache_dir)
@@ -75,9 +74,9 @@ def _move(m: int) -> str:
     return f"▲{m}" if m > 0 else (f"▼{-m}" if m < 0 else "–")
 
 
-def _print_table(title: str, scale: str, rows: list[dict], after: bool) -> None:
+def _print_table(lang: str, title: str, scale: str, rows: list[dict], after: bool) -> None:
     print(f"\n{title}  [{scale}]")
-    head = "  순위  점수      이동  " + ("전순위  " if after else "") + "출처 / 내용"
+    head = t(lang, "cli.head") + (t(lang, "cli.head_prev") if after else "") + t(lang, "cli.head_tail")
     print(head)
     for r in rows:
         extra = f"{r['rank_before']:>4}    " if after else ""
@@ -89,50 +88,49 @@ def _print_table(title: str, scale: str, rows: list[dict], after: bool) -> None:
 async def _ask(args) -> int:
     settings, engine = _engine(args)
     try:
-        _prepare_reranker(engine)
-        try:
-            index = await _build(engine, args, args.docs)
-        except _InputError as e:
-            print(str(e), file=sys.stderr)
-            return 1
+        _prepare_reranker(engine, args.lang)
+        index = await _build(engine, args, args.docs)
         result = await compare(engine, index, args.question, args.retriever, args.top_k)
         want_answer = args.answer or engine.mode == "mock"  # mock 은 답이 즉시 나오므로 늘 보여 준다
         answers = {}
         if not args.json:
             c = result["chunking"]
-            print(f"질문: {result['question']}")
-            print(f"검색기: {args.retriever} · top-k {args.top_k} · 청킹 {c['strategy']}"
-                  f"({'제목 붙임' if c['title_prefix'] else '제목 없음'}) · 색인 {len(index.chunks)}개 청크")
-            _print_table("리랭킹 전", result["scales"]["before"], result["before"], after=False)
+            prefix = t(args.lang, "cli.prefix_on" if c["title_prefix"] else "cli.prefix_off")
+            print(t(args.lang, "cli.question", question=result["question"]))
+            print(t(args.lang, "cli.settings", retriever=args.retriever, top_k=args.top_k, strategy=c["strategy"],
+                    prefix=prefix, chunks=len(index.chunks)))
+            # 척도 이름은 JSON 값(한국어)을 그대로 쓰지 않고 화면 언어 표에서 찾는다
+            _print_table(args.lang, t(args.lang, "cli.before"), t(args.lang, f"scale.{args.retriever}"),
+                         result["before"], after=False)
             if result["after"] is not None:
-                _print_table("리랭킹 후", result["scales"]["after"], result["after"], after=True)
+                _print_table(args.lang, t(args.lang, "cli.after"), t(args.lang, "scale.after"), result["after"], after=True)
             ratio = result["top2_ratio"]
             if ratio["before"] is not None and ratio["after"] is not None:
                 # 2위 점수가 1위의 몇 %인지: 작을수록 1위가 나머지보다 확실히 앞선다(화면 '점수 분포'와 같은 값)
-                print(f"\n1위와 2위 차이: 2위 점수가 1위의 {ratio['before']:.0%}(1단계) → {ratio['after']:.0%}(리랭커)"
-                      " — 작을수록 1위가 확실히 앞섬")
+                print("\n" + t(args.lang, "cli.ratio", before=f"{ratio['before']:.0%}", after=f"{ratio['after']:.0%}"))
             if result["no_evidence"]:
-                print("\n※ 리랭커 최고 점수가 문턱값보다 낮아 '근거 부족'으로 판단했습니다.")
-            t = result["timings_ms"]
-            print(f"\n시간(ms): 임베딩 {t['embed']} · 1단계 {t['retrieve']} · 리랭킹 {t['rerank']}")
+                print("\n" + t(args.lang, "cli.no_evidence"))
+            tm = result["timings_ms"]
+            print("\n" + t(args.lang, "cli.timings", embed=tm["embed"], retrieve=tm["retrieve"], rerank=tm["rerank"]))
         if want_answer:
-            for side, label in (("A", "답변 A (리랭킹 전 상위 3개 근거)"), ("B", "답변 B (리랭킹 후 상위 3개 근거)")):
+            for side, label in (("A", t(args.lang, "cli.answer_a")), ("B", t(args.lang, "cli.answer_b"))):
                 text = ""
                 async with aclosing(answer_stream(engine, index, result, side)) as stream:
                     async for ev in stream:
                         if ev["type"] == "thinking" and engine.mode == "real" and not args.json:
-                            print(f"\r  (생각 중… {ev['tokens']}토큰)", end="", file=sys.stderr, flush=True)
+                            print("\r" + t(args.lang, "cli.thinking", tokens=ev["tokens"]), end="", file=sys.stderr, flush=True)
                         elif ev["type"] == "notice" and not args.json:
-                            print(f"\n  ※ {ev['text']}", file=sys.stderr)
+                            print(f"\n  ※ {render_notice(ev, args.lang)['text']}", file=sys.stderr)
                         elif ev["type"] == "end":
                             text = ev["text"]
                             answers[side] = {"text": text, "citations": ev["citations"]}
                 if not args.json:
                     if engine.mode == "real":
                         print("", file=sys.stderr)
-                    print(f"\n{label}: {text}")
+                    shown = t(args.lang, "no_evidence_answer") if text == NO_EVIDENCE else text  # 근거 없음 문구만 화면 언어로
+                    print(f"\n{label}: {shown}")
                     cites = ", ".join(f"[{c['n']}]={c['chunk_id']}" for c in answers[side]["citations"])
-                    print(f"  인용: {cites or '없음'}")
+                    print(t(args.lang, "cli.cites", cites=cites or t(args.lang, "cli.none")))
         if args.json:
             if answers:
                 result["answers"] = answers
@@ -146,19 +144,19 @@ async def _ask(args) -> int:
 async def _eval(args) -> int:
     settings, engine = _engine(args)
     try:
-        _prepare_reranker(engine)
+        _prepare_reranker(engine, args.lang)
         index = await _build(engine, args, None)
         result = await evaluate(engine, index, load_questions(settings.samples_dir / "questions.json"), args.top_k)
         if args.json:
             print(json.dumps(result, ensure_ascii=False, indent=1))
             return 0
         n = result["n_questions"]
-        print(f"성적표 — 질문 {n}개, top-k {args.top_k}, 리랭커 {result['reranker']}")
-        print("  검색기    hit@1 전→후    MRR 전→후        순서 바뀐 질문")
+        print(t(args.lang, "cli.eval_title", n=n, top_k=args.top_k, reranker=result["reranker"]))
+        print(t(args.lang, "cli.eval_head"))
         for name, r in result["table"].items():
             print(f"  {name:<8}  {r['hit1_before']:>2}/{n} → {r['hit1_after']:>2}/{n}   "
                   f"{r['mrr_before']:.2f} → {r['mrr_after']:.2f}      {r['orders_changed']}")
-        print(f"\n순서가 바뀐 (질문 × 검색기) 조합: {result['orders_changed']}")
+        print("\n" + t(args.lang, "cli.eval_changed", count=result["orders_changed"]))
         return 0
     finally:
         await engine.aclose()
@@ -168,12 +166,9 @@ async def _eval(args) -> int:
 async def _index(args) -> int:
     settings, engine = _engine(args)
     try:
-        try:
-            index = await _build(engine, args, args.folder)
-        except _InputError as e:
-            print(str(e), file=sys.stderr)
-            return 1
-        print(f"문서 {len({c.doc for c in index.chunks})}개 → 청크 {len(index.chunks)}개 ({index.options.strategy})")
+        index = await _build(engine, args, args.folder)
+        print(t(args.lang, "cli.index_summary", docs=len({c.doc for c in index.chunks}), chunks=len(index.chunks),
+                strategy=index.options.strategy))
         for c in index.chunks[: args.show]:
             print(f"  {c.chunk_id:<24} {_short(c.content, 60)}")
         return 0
@@ -183,19 +178,23 @@ async def _index(args) -> int:
 
 # ---------- doctor ----------
 def _doctor(args) -> int:
+    lang = args.lang
     settings = Settings.from_env()
     checks: list[tuple[str, bool, str, str]] = []  # (항목, 통과?, 설명, 해결 방법)
     checks.append(("Python 3.14+", sys.version_info >= (3, 14), sys.version.split()[0], "uv python install 3.14"))
+    sqlite_name = t(lang, "doctor.sqlite")
     try:
         with closing(connect(":memory:")) as db:
             ver = db.execute("select vec_version()").fetchone()[0]
-        checks.append(("SQLite 확장 + sqlite-vec", True, ver, ""))
+        checks.append((sqlite_name, True, ver, ""))
     except (AttributeError, sqlite3.Error) as e:
-        checks.append(("SQLite 확장 + sqlite-vec", False, str(e), "uv 가 설치한 Python 으로 실행(uv run …)"))
+        checks.append((sqlite_name, False, str(e), t(lang, "doctor.sqlite_fix")))
     ok, names, err = probe_ollama(settings)
-    checks.append(("Ollama 연결", ok, settings.ollama_base_url if ok else err, "https://ollama.com 설치 후 `ollama serve`"))
+    checks.append((t(lang, "doctor.ollama"), ok, settings.ollama_base_url if ok else err, t(lang, "doctor.ollama_fix")))
     for m in (settings.embed_model, settings.chat_model):
-        checks.append((f"모델 {m}", ok and has_model(names, m), "있음" if ok and has_model(names, m) else "없음", f"ollama pull {m}"))
+        present = ok and has_model(names, m)
+        checks.append((t(lang, "doctor.model", name=m), present,
+                       t(lang, "doctor.present" if present else "doctor.absent"), f"ollama pull {m}"))
     try:
         import onnxruntime  # noqa: F401
         import tokenizers  # noqa: F401
@@ -207,10 +206,11 @@ def _doctor(args) -> int:
 
     hub = RerankerHub(settings)
     if args.download and hub.local_paths() is None:
-        print(f"리랭커 모델 내려받는 중: {RERANKER_REPO} (약 588MB)", file=sys.stderr)
+        print(t(lang, "cli.model_download_doctor", repo=RERANKER_REPO), file=sys.stderr)
         hub.prepare_blocking(show_progress=True)
     have = hub.local_paths() is not None
-    checks.append(("리랭커 모델 파일", have, "있음" if have else "없음(첫 실행 때 자동으로 받음)",
+    checks.append((t(lang, "doctor.reranker_file"), have,
+                   t(lang, "doctor.present") if have else t(lang, "doctor.reranker_absent"),
                    "uv run rag-rerank doctor --download"))
     for name, passed, detail, fix in checks:
         print(f"[{'OK' if passed else '!!'}] {name}: {detail}" + ("" if passed else f"  → {fix}"))
@@ -236,20 +236,20 @@ def _serve(args) -> int:
     from .server import create_app
 
     settings = Settings.from_env()
-    mode_info = resolve_mode(settings, force_mock=getattr(args, "mock", False))
+    mode_info = resolve_mode(settings, force_mock=getattr(args, "mock", False), lang=args.lang)
+    reason, hints = mode_info.render(args.lang)
     port = args.port or settings.port
     url = browser_url(args.host, port)
     probe_host = "127.0.0.1" if args.host in WILDCARD_HOSTS else args.host
     with closing(socket.socket()) as probe:  # 포트가 이미 쓰이고 있으면 알아듣기 쉬운 말로 알린다
         if probe.connect_ex((probe_host, port)) == 0:
-            print(f"포트 {port} 를 이미 다른 프로그램이 쓰고 있습니다. 다른 포트로 실행하세요:\n"
-                  f"  uv run rag-rerank serve --port {port + 1}   (또는 RAG_PORT={port + 1})", file=sys.stderr)
+            print(t(args.lang, "serve.port_busy", port=port, next_port=port + 1), file=sys.stderr)
             return 1
     # flush=True: 터미널이 아닌 곳(도커 로그, 파이프)으로 내보낼 때도 이 줄들이 바로 보이게 한다
-    print(f"[{mode_info.mode.upper()}] {mode_info.reason}", flush=True)
-    for hint in mode_info.hints:
+    print(f"[{mode_info.mode.upper()}] {reason}", flush=True)
+    for hint in hints:
         print(f"  · {hint}", flush=True)
-    print(f"화면: {url}  (끝내려면 Ctrl+C)", flush=True)
+    print(t(args.lang, "serve.url", url=url), flush=True)
     timer = None
     # --no-browser 는 'rag-rerank --no-browser' 와 'rag-rerank serve --no-browser' 어느 쪽에 써도 된다
     if not getattr(args, "no_browser", False) and not os.environ.get("RAG_NO_BROWSER"):
@@ -263,12 +263,10 @@ def _serve(args) -> int:
         elif args.host in WILDCARD_HOSTS:
             # 모든 주소로 열기는 "다른 기기에서도 접속"을 직접 고른 것이므로 Host 검사를 푼다(접속 IP를 미리 알 수 없음)
             extra = ["*"]
-            print(f"다른 기기에서는 http://<이 컴퓨터 IP>:{port} 로 접속하세요(도커라면 -p {port}:{port} 로 포트를 열어 두세요).\n"
-                  "주의: 같은 네트워크의 다른 기기에서도 이 서버에 접속할 수 있습니다. 믿을 수 있는 네트워크에서만 쓰세요.",
-                  flush=True)
+            print(t(args.lang, "serve.lan", port=port), flush=True)
         else:
             extra = [args.host]
-        uvicorn.run(create_app(settings, mode_info, extra_hosts=extra), host=args.host, port=port, log_level="warning")
+        uvicorn.run(create_app(settings, mode_info, extra_hosts=extra, lang=args.lang), host=args.host, port=port, log_level="warning")
     finally:
         if timer is not None:
             timer.cancel()
@@ -276,67 +274,84 @@ def _serve(args) -> int:
 
 
 # ---------- 인자 ----------
-def build_parser() -> argparse.ArgumentParser:
+def _pre_parse_lang(argv: list[str] | None) -> str:
+    """도움말 문구도 언어를 따라야 하므로, 본 파서를 만들기 전에 --lang 만 먼저 읽는다(잘못된 값은 본 파서가 거부)."""
+    pre = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
+    pre.add_argument("--lang", default=None)
+    known, _ = pre.parse_known_args(argv)
+    return resolve_lang(known.lang)
+
+
+def build_parser(lang: str = "en") -> argparse.ArgumentParser:
+    def h(message_id: str) -> str:
+        return t(lang, message_id)
+
     common = argparse.ArgumentParser(add_help=False)
     # SUPPRESS: 'rag-rerank --mock ask …' 와 'rag-rerank ask … --mock' 둘 다 되게 한다
-    common.add_argument("--mock", action="store_true", default=argparse.SUPPRESS,
-                        help="Ollama·모델 없이 가짜(결정적) 모델로 실행")
+    common.add_argument("--mock", action="store_true", default=argparse.SUPPRESS, help=h("help.mock"))
+    # --lang 도 하위 명령 앞뒤 어디에 써도 된다. 값이 없으면 main() 이 RAG_LANG·LANG 으로 정한다
+    common.add_argument("--lang", choices=LANGS, default=argparse.SUPPRESS, metavar="{en,ko}", help=h("help.lang"))
 
     def chunk_args(p):
-        p.add_argument("--chunking", choices=STRATEGIES, default="paragraph", help="청킹 방식(기본 paragraph)")
-        p.add_argument("--no-title-prefix", action="store_true", help="청크 앞에 [문서 > 절 제목]을 붙이지 않음")
-        p.add_argument("--top-k", type=int, default=8, help="1단계 후보 수(기본 8)")
+        p.add_argument("--chunking", choices=STRATEGIES, default="paragraph", help=h("help.chunking"))
+        p.add_argument("--no-title-prefix", action="store_true", help=h("help.no_title_prefix"))
+        p.add_argument("--top-k", type=int, default=8, help=h("help.top_k"))
 
-    parser = argparse.ArgumentParser(prog="rag-rerank", parents=[common],
-                                     description="RAG 리랭킹 전/후 비교 워크벤치")
+    parser = argparse.ArgumentParser(prog="rag-rerank", parents=[common], description=h("help.description"))
     # 하위 명령 없이 'rag-rerank --no-browser' 로도 쓸 수 있게(화면 없는 서버·컨테이너·SSH)
-    parser.add_argument("--no-browser", action="store_true", default=argparse.SUPPRESS,
-                        help="브라우저를 자동으로 열지 않음(주소만 출력)")
+    parser.add_argument("--no-browser", action="store_true", default=argparse.SUPPRESS, help=h("help.no_browser"))
     sub = parser.add_subparsers(dest="cmd")
 
-    p = sub.add_parser("serve", parents=[common], help="웹 화면(기본)")
-    p.add_argument("--host", default="127.0.0.1")
-    p.add_argument("--port", type=int, default=None)
-    p.add_argument("--no-browser", action="store_true", default=argparse.SUPPRESS,
-                   help="브라우저를 자동으로 열지 않음(주소만 출력)")
+    p = sub.add_parser("serve", parents=[common], help=h("help.serve"))
+    p.add_argument("--host", default="127.0.0.1", help=h("help.host"))
+    p.add_argument("--port", type=int, default=None, help=h("help.port"))
+    p.add_argument("--no-browser", action="store_true", default=argparse.SUPPRESS, help=h("help.no_browser"))
 
-    p = sub.add_parser("ask", parents=[common], help="터미널에서 질문 한 번")
-    p.add_argument("question")
-    p.add_argument("--retriever", choices=RETRIEVERS, default="hybrid")
-    p.add_argument("--docs", help="샘플 대신 이 폴더의 .md/.txt 로 검색")
-    p.add_argument("--answer", action="store_true", help="실제 모드에서도 답변 A/B 생성(느림: 생각 전용 모델이라 답 하나에 수십 초~2분, "
-                        "2분을 넘으면 근거 문장을 옮긴 답으로 대신)")
-    p.add_argument("--json", action="store_true", help="결과를 JSON 으로 출력")
+    p = sub.add_parser("ask", parents=[common], help=h("help.ask"))
+    p.add_argument("question", help=h("help.question"))
+    p.add_argument("--retriever", choices=RETRIEVERS, default="hybrid", help=h("help.retriever"))
+    p.add_argument("--docs", help=h("help.docs"))
+    p.add_argument("--answer", action="store_true", help=h("help.answer"))
+    p.add_argument("--json", action="store_true", help=h("help.json"))
     chunk_args(p)
 
-    p = sub.add_parser("eval", parents=[common], help="성적표(hit@1·MRR 전/후)")
-    p.add_argument("--json", action="store_true")
+    p = sub.add_parser("eval", parents=[common], help=h("help.eval"))
+    p.add_argument("--json", action="store_true", help=h("help.json"))
     chunk_args(p)
 
-    p = sub.add_parser("index", parents=[common], help="폴더 색인해 보기")
-    p.add_argument("folder", nargs="?", help="생략하면 samples/")
-    p.add_argument("--show", type=int, default=5, help="미리 볼 청크 수")
+    p = sub.add_parser("index", parents=[common], help=h("help.index"))
+    p.add_argument("folder", nargs="?", help=h("help.folder"))
+    p.add_argument("--show", type=int, default=5, help=h("help.show"))
     chunk_args(p)
 
-    p = sub.add_parser("doctor", parents=[common], help="실제 모드 준비 상태 진단")
-    p.add_argument("--download", action="store_true", help="리랭커 모델이 없으면 지금 내려받기")
+    p = sub.add_parser("doctor", parents=[common], help=h("help.doctor"))
+    p.add_argument("--download", action="store_true", help=h("help.download"))
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    lang = _pre_parse_lang(argv)
+    args = build_parser(lang).parse_args(argv)
+    args.lang = getattr(args, "lang", None) or lang  # --lang 이 있으면 그 값, 없으면 환경에서 정한 값
     cmd = args.cmd or "serve"
     if cmd == "serve" and args.cmd is None:  # 하위 명령 없이 실행 → serve 기본값 채우기
         args.host, args.port = "127.0.0.1", None
-    if cmd == "ask":
-        return asyncio.run(_ask(args))
-    if cmd == "eval":
-        return asyncio.run(_eval(args))
-    if cmd == "index":
-        return asyncio.run(_index(args))
-    if cmd == "doctor":
-        return _doctor(args)
-    return _serve(args)
+    try:
+        if cmd == "ask":
+            return asyncio.run(_ask(args))
+        if cmd == "eval":
+            return asyncio.run(_eval(args))
+        if cmd == "index":
+            return asyncio.run(_index(args))
+        if cmd == "doctor":
+            return _doctor(args)
+        return _serve(args)
+    except RagError as e:  # 입력·준비 오류: 트레이스백 없이 한 줄, 종료 코드 1
+        print(e.render(args.lang), file=sys.stderr)
+        return 1
+    except OSError as e:  # 읽기·쓰기 권한 없음 등(PermissionError 포함)
+        print(os_error_to_rag_error(e).render(args.lang), file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

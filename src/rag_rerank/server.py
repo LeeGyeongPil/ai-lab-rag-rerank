@@ -12,6 +12,9 @@
 색인은 최근 6개만 메모리에 둔다(디스크 파일 정리 때 이 6개의 파일은 지우지 않는다).
 답변 스트림은 브라우저가 끊으면 Ollama 스트림까지 닫는다.
 
+언어: 오류 문구·모드 안내는 요청의 ?lang=en|ko → Accept-Language → 서버 환경(RAG_LANG 등) 순으로 정한 언어로 만든다.
+JSON 의 키와 모양은 언어와 상관없이 같다.
+
 보안: 127.0.0.1 에만 묶고, Host 헤더가 127.0.0.1/localhost 인 요청만 받는다
 (DNS 리바인딩 — 다른 사이트가 이름만 바꿔 이 서버를 부르는 공격 — 을 막는다).
 """
@@ -26,8 +29,8 @@ from contextlib import aclosing, asynccontextmanager
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -35,6 +38,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from .chunking import ChunkOptions, Document
 from .config import ModeInfo, Settings, resolve_mode
 from .evaluate import evaluate, load_questions
+from .i18n import LANGS, RagError, from_accept_language, render_notice, resolve_lang, t
 from .pipeline import Engine, answer_stream, compare, create_engine
 from .store import Index, build_index, load_folder
 
@@ -88,7 +92,7 @@ class AppState:
     async def index(self, collection: str, chunking: str, title_prefix: bool) -> Index:
         docs = self.samples if collection == "samples" else self.user_docs
         if not docs:
-            raise HTTPException(400, "먼저 '내 문서' 탭에서 문서를 색인하세요.")
+            raise RagError("need_docs_first")
         key = (collection, chunking, title_prefix)
         async with self.lock:
             cached = self.indexes.get(key)
@@ -106,10 +110,19 @@ class AppState:
 
 
 def create_app(settings: Settings | None = None, mode_info: ModeInfo | None = None,
-               extra_hosts: list[str] | None = None) -> FastAPI:
-    """extra_hosts: serve --host 로 127.0.0.1 이 아닌 주소를 직접 고른 경우 그 이름도 허용한다."""
+               extra_hosts: list[str] | None = None, lang: str | None = None) -> FastAPI:
+    """extra_hosts: serve --host 로 127.0.0.1 이 아닌 주소를 직접 고른 경우 그 이름도 허용한다.
+
+    lang: 요청이 언어를 밝히지 않았을 때 쓸 서버 기본 언어(없으면 환경변수로 정한다).
+    """
     settings = settings or Settings.from_env()
     mode_info = mode_info or resolve_mode(settings)
+    server_lang = lang or resolve_lang()
+
+    def lang_of(request: Request) -> str:
+        """?lang= → Accept-Language → 서버 기본 언어."""
+        q = request.query_params.get("lang")
+        return q if q in LANGS else (from_accept_language(request.headers.get("accept-language")) or server_lang)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -131,6 +144,12 @@ def create_app(settings: Settings | None = None, mode_info: ModeInfo | None = No
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=LOOPBACK_HOSTS + list(extra_hosts or []))
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
+    @app.exception_handler(RagError)
+    async def rag_error_handler(request: Request, exc: RagError):
+        # 라이브러리 오류(code+params)를 요청 언어로 렌더링. 응답 모양은 예전과 같은 {"detail": "…"}
+        status = 409 if exc.code in ("reranker_not_ready", "reranker_failed") else 400
+        return JSONResponse({"detail": exc.render(lang_of(request))}, status_code=status)
+
     def rag(request: Request) -> AppState:
         return request.app.state.rag
 
@@ -143,10 +162,11 @@ def create_app(settings: Settings | None = None, mode_info: ModeInfo | None = No
         st = rag(request)
         eng = st.engine
         chips = sorted(st.questions, key=lambda q: q["q"] != FEATURED)
+        reason, hints = eng.mode_info.render(lang_of(request))
         return {
             "mode": eng.mode,
-            "mode_reason": eng.mode_info.reason,
-            "hints": eng.mode_info.hints,
+            "mode_reason": reason,
+            "hints": hints,
             "models": {"embed": eng.embedder.name, "chat": eng.generator.name},
             "reranker": eng.hub.status() if eng.hub else {"state": "ready", "model": "mock-overlap", "percent": 100},
             "questions": [{"q": q["q"], "gold": q["gold"], "note": q.get("note")} for q in chips],
@@ -159,24 +179,21 @@ def create_app(settings: Settings | None = None, mode_info: ModeInfo | None = No
     async def retry(request: Request):
         hub = rag(request).engine.hub
         if hub is None:
-            return {"started": False, "reason": "mock 모드에는 내려받을 모델이 없습니다."}
+            return {"started": False, "reason": t(lang_of(request), "server.no_model_mock")}
         return {"started": hub.start_background(), "reranker": hub.status()}
 
     @app.post("/api/index")
     async def index_docs(req: IndexRequest, request: Request):
         st = rag(request)
         if req.folder:
-            try:
-                docs = load_folder(Path(req.folder))
-            except ValueError as e:
-                raise HTTPException(400, str(e))
+            docs = load_folder(Path(req.folder))  # 잘못된 폴더·읽기 실패는 RagError → 위 핸들러가 언어에 맞게 400 으로
         elif req.files:
             docs = [Document(f.name.rsplit(".", 1)[0], f.name, f.text)
                     for f in req.files if f.name.lower().endswith((".md", ".txt"))]
         else:
-            raise HTTPException(400, "folder 또는 files 중 하나를 보내세요.")
+            raise RagError("need_folder_or_files")
         if not docs:
-            raise HTTPException(400, ".md 또는 .txt 문서를 찾지 못했습니다.")
+            raise RagError("no_docs")
         st.user_docs = docs
         st.indexes = OrderedDict((k, v) for k, v in st.indexes.items() if k[0] != "mine")  # 예전 내 문서 색인 버리기
         idx = await st.index("mine", req.chunking, req.title_prefix)
@@ -193,16 +210,14 @@ def create_app(settings: Settings | None = None, mode_info: ModeInfo | None = No
     async def eval_route(req: Options, request: Request):
         st = rag(request)
         idx = await st.index("samples", req.chunking, req.title_prefix)
-        try:
-            return await evaluate(st.engine, idx, st.questions, req.top_k)
-        except RuntimeError as e:
-            raise HTTPException(409, str(e))
+        return await evaluate(st.engine, idx, st.questions, req.top_k)  # 리랭커 미준비는 RagError → 409
 
     @app.post("/api/answer")
     async def answer_route(req: AnswerRequest, request: Request):
         st = rag(request)
         idx = await st.index(req.collection, req.chunking, req.title_prefix)
         result = await compare(st.engine, idx, req.question, req.retriever, req.top_k)
+        lang = lang_of(request)
 
         async def events():
             # 한 줄에 JSON 하나(NDJSON). 답변 A가 끝나면 B를 만든다(Ollama 대기열을 두 답이 다투지 않게).
@@ -214,7 +229,7 @@ def create_app(settings: Settings | None = None, mode_info: ModeInfo | None = No
                         async for event in stream:
                             if await request.is_disconnected():
                                 return  # 브라우저가 끊음/중지 → aclosing 이 Ollama 스트림까지 닫는다
-                            yield json.dumps({"side": side, **event}, ensure_ascii=False) + "\n"
+                            yield json.dumps({"side": side, **render_notice(event, lang)}, ensure_ascii=False) + "\n"
                 except Exception as e:  # Ollama 오류 등은 화면에 보여 주고 다음 답변으로 넘어간다
                     yield json.dumps({"side": side, "type": "error", "text": f"{type(e).__name__}: {e}"},
                                      ensure_ascii=False) + "\n"

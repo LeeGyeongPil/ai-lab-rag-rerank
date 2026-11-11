@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 
 from . import retrieve
+from .i18n import RagError
 from .store import Index
 
 
@@ -35,7 +36,7 @@ async def evaluate(engine, index: Index, questions: list[dict], top_k: int = 8,
                    retrievers: tuple[str, ...] = ("keyword", "vector", "hybrid")) -> dict:
     reranker, state = engine.reranker_for(index)
     if reranker is None:
-        raise RuntimeError(f"리랭커가 아직 준비되지 않았습니다(상태: {state}).")
+        raise RagError("reranker_not_ready", state=state)
 
     # 질문마다 정답 청크(들)의 번호. gold 문자열을 품은 청크가 여러 개면 그중 가장 높은 순위를 쓴다.
     gold = [{i for i, c in enumerate(index.chunks) if q["gold"] in c.text} for q in questions]

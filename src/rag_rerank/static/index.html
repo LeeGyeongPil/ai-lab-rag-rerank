@@ -1,30 +1,37 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>RAG 리랭킹 전/후 비교</title>
+  <title>RAG reranking: before / after</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body data-state="idle">
   <header class="top">
     <div class="brand">
-      <h1>RAG 리랭킹 <span class="dim">전 / 후</span></h1>
+      <h1><span data-i18n="h1">RAG reranking</span> <span class="dim" data-i18n="h1.dim">before / after</span></h1>
       <span id="mode-badge" class="badge">…</span>
       <span id="models" class="models"></span>
+      <!-- 눈에 보이는 언어 선택: 고른 값은 localStorage 에 저장된다(i18n.js) -->
+      <label class="lang-pick"><span data-i18n="lang.label">Language</span>
+        <select id="lang-select">
+          <option value="en">English</option>
+          <option value="ko">한국어</option>
+        </select>
+      </label>
     </div>
     <div id="mode-note" class="mode-note" hidden></div>
     <!-- 리랭커 모델 내려받기 진행률(실제 모드 첫 실행) -->
     <div id="rr-status" class="rr-status" hidden>
-      <span id="rr-label">리랭커 모델 내려받는 중</span>
+      <span id="rr-label">Downloading the reranker model</span>
       <div class="bar"><div id="rr-bar"></div></div>
       <span id="rr-pct"></span>
-      <button id="btn-rr-retry" type="button" hidden>다시 시도</button>
+      <button id="btn-rr-retry" type="button" data-i18n="rr.retry" hidden>Try again</button>
     </div>
     <nav class="tabs" role="tablist">
-      <button type="button" class="tab active" data-tab="compare" id="tab-compare">비교</button>
-      <button type="button" class="tab" data-tab="eval" id="tab-eval">실험</button>
-      <button type="button" class="tab" data-tab="docs" id="tab-docs">내 문서</button>
+      <button type="button" class="tab active" data-tab="compare" id="tab-compare" data-i18n="tab.compare">Compare</button>
+      <button type="button" class="tab" data-tab="eval" id="tab-eval" data-i18n="tab.eval">Experiment</button>
+      <button type="button" class="tab" data-tab="docs" id="tab-docs" data-i18n="tab.docs">My documents</button>
     </nav>
   </header>
 
@@ -32,32 +39,32 @@
     <!-- ===== 비교 탭 ===== -->
     <section id="panel-compare" class="panel">
       <form id="ask-form" class="ask">
-        <input id="question" type="text" maxlength="500" placeholder="문서에 물어볼 질문을 입력하세요" autocomplete="off">
-        <button id="btn-compare" type="submit">비교하기</button>
+        <input id="question" type="text" maxlength="500" placeholder="Type a question to ask your documents" data-i18n-placeholder="ask.placeholder" autocomplete="off">
+        <button id="btn-compare" type="submit" data-i18n="ask.submit">Compare</button>
       </form>
-      <div id="chips" class="chips" aria-label="예시 질문"></div>
+      <div id="chips" class="chips" aria-label="Example questions" data-i18n-aria="chips.label"></div>
 
       <div class="controls">
-        <label>문서
+        <label><span data-i18n="label.docs">Documents</span>
           <select id="collection">
-            <option value="samples">샘플 문서</option>
-            <option value="mine" disabled>내 문서</option>
+            <option value="samples" data-i18n="opt.samples">Sample documents</option>
+            <option value="mine" data-i18n="opt.mine" disabled>My documents</option>
           </select>
         </label>
-        <div class="seg" id="retriever" role="group" aria-label="1단계 검색기">
-          <button type="button" data-v="vector">벡터</button>
-          <button type="button" data-v="keyword">키워드</button>
-          <button type="button" data-v="hybrid" class="on">하이브리드</button>
+        <div class="seg" id="retriever" role="group" aria-label="Stage-1 retriever" data-i18n-aria="retriever.label">
+          <button type="button" data-v="vector" data-i18n="retriever.vector">Vector</button>
+          <button type="button" data-v="keyword" data-i18n="retriever.keyword">Keyword</button>
+          <button type="button" data-v="hybrid" class="on" data-i18n="retriever.hybrid">Hybrid</button>
         </div>
         <label>top-k <input id="top-k" type="range" min="4" max="20" value="8"><output id="top-k-val">8</output></label>
-        <label>청킹
+        <label><span data-i18n="label.chunking">Chunking</span>
           <select id="chunking">
-            <option value="paragraph">문단</option>
-            <option value="recursive">재귀 분할(200자)</option>
-            <option value="heading">제목 단위</option>
+            <option value="paragraph" data-i18n="chunking.paragraph">Paragraph</option>
+            <option value="recursive" data-i18n="chunking.recursive">Recursive split (200 chars)</option>
+            <option value="heading" data-i18n="chunking.heading">By heading</option>
           </select>
         </label>
-        <label class="check"><input id="title-prefix" type="checkbox" checked> 제목 붙이기</label>
+        <label class="check"><input id="title-prefix" type="checkbox" checked> <span data-i18n="label.title_prefix">Prepend titles</span></label>
       </div>
 
       <div id="note" class="note" hidden></div>
@@ -65,49 +72,49 @@
       <!-- 심장: 왼쪽 '리랭킹 전', 가운데 연결선, 오른쪽 '리랭킹 후' -->
       <div class="board" id="board">
         <div class="col">
-          <div class="col-head"><h2>리랭킹 전</h2><span class="scale" id="scale-before">1단계 점수</span></div>
-          <ol id="col-before" class="cards"><li class="empty">질문을 입력하거나 예시 질문을 눌러 보세요.</li></ol>
+          <div class="col-head"><h2 data-i18n="col.before">Before reranking</h2><span class="scale" id="scale-before">Stage-1 score</span></div>
+          <ol id="col-before" class="cards"><li class="empty" data-i18n="empty.start">Type a question or click an example question.</li></ol>
         </div>
         <svg id="links" class="links" aria-hidden="true"></svg>
         <div class="col">
-          <div class="col-head"><h2>리랭킹 후</h2><span class="scale" id="scale-after">리랭커 점수(0~1)</span></div>
+          <div class="col-head"><h2 data-i18n="col.after">After reranking</h2><span class="scale" id="scale-after">Reranker score (0 to 1)</span></div>
           <ol id="col-after" class="cards"></ol>
         </div>
       </div>
 
       <div class="legend">
-        <span><mark class="hl">노랑</mark> 질문과 겹치는 표현</span>
-        <span><span class="ev">밑줄</span> 리랭커가 가장 높게 본 문장</span>
-        <span><b class="move up">▲n</b> n칸 올라감</span>
-        <span><b class="move down">▼n</b> n칸 내려감</span>
-        <span><b class="gold-tag">정답</b> 예시 질문의 정답 문단</span>
+        <span><mark class="hl" data-i18n="legend.yellow">Yellow</mark> <span data-i18n="legend.yellow_t">wording shared with the question</span></span>
+        <span><span class="ev" data-i18n="legend.underline">Underline</span> <span data-i18n="legend.underline_t">the sentence the reranker scored highest</span></span>
+        <span><b class="move up">▲n</b> <span data-i18n="legend.up">moved up n places</span></span>
+        <span><b class="move down">▼n</b> <span data-i18n="legend.down">moved down n places</span></span>
+        <span><b class="gold-tag" data-i18n="legend.gold">Answer</b> <span data-i18n="legend.gold_t">the correct passage for an example question</span></span>
       </div>
 
       <!-- 점수 분포: 1단계는 1위와 나머지가 붙어 있고, 리랭커는 1위가 떨어져 나온다 -->
       <div id="dist" class="dist" hidden>
-        <div class="dist-head">점수 분포 <small>(열마다 척도가 달라, 각 열의 1위 점수를 오른쪽 끝에 두고 그 비율로 그림)</small></div>
+        <div class="dist-head"><span data-i18n="dist.head">Score distribution</span> <small data-i18n="dist.sub">(each column has its own scale, so the #1 score is put at the right end and the rest drawn as a ratio of it)</small></div>
         <svg id="score-chart" viewBox="0 0 600 92"></svg>
         <div id="dist-text" class="dim small"></div>
       </div>
 
       <div class="answers">
         <div class="answer-actions">
-          <button id="btn-answer" type="button" disabled>답변 만들기</button>
-          <button id="btn-stop" type="button" hidden>중지</button>
-          <span class="dim small" id="answer-hint">같은 질문에 대해 근거만 바꿔 두 번 답합니다(A가 끝나면 B).</span>
+          <button id="btn-answer" type="button" data-i18n="answer.make" disabled>Make answers</button>
+          <button id="btn-stop" type="button" data-i18n="answer.stop" hidden>Stop</button>
+          <span class="dim small" id="answer-hint" data-i18n="answer.hint">The same question is answered twice with different evidence (B starts after A finishes).</span>
         </div>
         <div class="answer-grid">
           <article id="answer-a" class="answer" data-done="false">
-            <h3>답변 A <small>리랭킹 전 상위 3개 근거</small></h3>
-            <details class="think"><summary>생각 과정</summary><p class="dim small">이 모델은 답하기 전에 먼저 '생각'을 합니다. 내용은 접어 두고 길이(토큰 수)만 보여 줍니다.</p></details>
+            <h3><span data-i18n="answer.a">Answer A</span> <small data-i18n="answer.a_sub">top 3 evidence before reranking</small></h3>
+            <details class="think"><summary data-i18n="answer.think">Thinking</summary><p class="dim small" data-i18n="answer.think_note">This model 'thinks' before answering. The content is folded away; only its length (tokens) is shown.</p></details>
             <div class="notice" hidden></div>
-            <p class="text dim">아직 답변이 없습니다.</p>
+            <p class="text dim" data-i18n="answer.none">No answer yet.</p>
           </article>
           <article id="answer-b" class="answer" data-done="false">
-            <h3>답변 B <small>리랭킹 후 상위 3개 근거</small></h3>
-            <details class="think"><summary>생각 과정</summary><p class="dim small">이 모델은 답하기 전에 먼저 '생각'을 합니다. 내용은 접어 두고 길이(토큰 수)만 보여 줍니다.</p></details>
+            <h3><span data-i18n="answer.b">Answer B</span> <small data-i18n="answer.b_sub">top 3 evidence after reranking</small></h3>
+            <details class="think"><summary data-i18n="answer.think">Thinking</summary><p class="dim small" data-i18n="answer.think_note">This model 'thinks' before answering. The content is folded away; only its length (tokens) is shown.</p></details>
             <div class="notice" hidden></div>
-            <p class="text dim">아직 답변이 없습니다.</p>
+            <p class="text dim" data-i18n="answer.none">No answer yet.</p>
           </article>
         </div>
       </div>
@@ -115,10 +122,9 @@
 
     <!-- ===== 실험 탭 ===== -->
     <section id="panel-eval" class="panel" hidden>
-      <p>예시 질문 14개(정답 문단이 정해져 있음)로 검색기 3종 × 리랭킹 전/후 성적을 계산합니다.
-        청킹·제목 붙이기·top-k 는 비교 탭의 설정을 그대로 씁니다.</p>
-      <p class="dim small"><b>hit@1</b> 정답이 1위인 질문 수 · <b>MRR</b> 정답 순위의 역수 평균(1위=1, 2위=0.5 … 후보 밖=0)</p>
-      <button id="btn-eval" type="button">성적표 계산</button>
+      <p data-i18n="eval.intro">Computes before/after scores for 3 retrievers on 14 example questions (each has a known correct passage). Chunking, title prefix and top-k use the settings of the Compare tab.</p>
+      <p class="dim small"><b>hit@1</b> <span data-i18n="eval.legend_hit">number of questions whose correct passage is #1</span> · <b>MRR</b> <span data-i18n="eval.legend_mrr">mean of 1/rank of the correct passage (#1 = 1, #2 = 0.5 ... outside = 0)</span></p>
+      <button id="btn-eval" type="button" data-i18n="eval.run">Compute score card</button>
       <span id="eval-status" class="dim small"></span>
       <table id="eval-table" class="table" data-ready="false"></table>
       <table id="eval-questions" class="table qtable"></table>
@@ -126,19 +132,20 @@
 
     <!-- ===== 내 문서 탭 ===== -->
     <section id="panel-docs" class="panel" hidden>
-      <p>.md / .txt 문서를 색인하면 비교 탭에서 '내 문서'로 질문할 수 있습니다. 문서는 이 컴퓨터 밖으로 나가지 않습니다.</p>
+      <p data-i18n="docs.intro">Index .md / .txt documents and then ask about them as 'My documents' in the Compare tab. Documents never leave this computer.</p>
       <div class="ask">
-        <input id="folder-path" type="text" placeholder="폴더 경로 (예: ~/notes)">
-        <button id="btn-index-folder" type="button">폴더 색인</button>
+        <input id="folder-path" type="text" placeholder="Folder path (e.g. ~/notes)" data-i18n-placeholder="docs.folder_placeholder">
+        <button id="btn-index-folder" type="button" data-i18n="docs.index_folder">Index folder</button>
       </div>
       <label id="dropzone" class="dropzone">
         <input id="file-input" type="file" accept=".md,.txt" multiple hidden>
-        여기에 .md / .txt 파일을 끌어다 놓거나 눌러서 고르세요
+        <span data-i18n="docs.dropzone">Drop .md / .txt files here, or click to choose</span>
       </label>
       <div id="index-status" class="dim"></div>
     </section>
   </main>
 
+  <script src="/static/i18n.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>

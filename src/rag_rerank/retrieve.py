@@ -10,6 +10,7 @@ from collections import defaultdict
 
 import numpy as np
 
+from .i18n import RagError
 from .store import Index
 
 RETRIEVERS = ("vector", "keyword", "hybrid")
@@ -62,4 +63,4 @@ def search(index: Index, retriever: str, query: str, query_vec: np.ndarray | Non
         return vector(index, query_vec, k)
     if retriever == "hybrid":
         return hybrid(index, query, query_vec, k)
-    raise ValueError(f"알 수 없는 검색기: {retriever}")
+    raise RagError("unknown_retriever", name=retriever)

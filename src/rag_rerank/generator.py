@@ -21,6 +21,7 @@ from typing import AsyncIterator, Callable
 import httpx
 
 from .bm25 import grams
+from .i18n import notice
 from .highlight import split_sentences
 from .mocklex import overlap as lexicon_overlap
 
@@ -118,7 +119,7 @@ class OllamaGenerator:
             await response.aclose()
         yield {"type": "thinking", "tokens": thinking}
         if timed_out and not got_answer:
-            yield {"type": "notice", "text": f"생각이 {int(self.time_limit)}초를 넘어 중단하고, 근거 문장을 그대로 옮긴 답으로 대신합니다."}
+            yield notice("time_limit_fallback", seconds=int(self.time_limit))
             yield {"type": "content", "text": extractive_answer(question, evidence)}
         elif timed_out:
-            yield {"type": "notice", "text": f"{int(self.time_limit)}초를 넘어 답을 중간에 멈췄습니다."}
+            yield notice("time_limit_cut", seconds=int(self.time_limit))

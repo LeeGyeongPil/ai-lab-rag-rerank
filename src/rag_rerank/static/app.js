@@ -10,11 +10,15 @@ const state = {
   retriever: "hybrid",
   answerCtrl: null,   // 답변 스트림 중지용 AbortController
   pollTimer: null,    // 리랭커 내려받기 진행률 폴링 타이머(준비되면 멈춘다)
+  lastEval: null,     // 마지막 성적표(언어를 바꾸면 다시 그린다)
 };
+// 화면 문구는 전부 i18n.js 의 tr(문구 id) 로 가져온다(영어·한국어 표 한 곳).
 
 // ---------- 공통 ----------
+// 서버 오류 문구·모드 안내도 같은 언어로 받도록 모든 요청에 ?lang= 을 붙인다(JSON 모양은 그대로)
+const withLang = (path) => `${path}${path.includes("?") ? "&" : "?"}lang=${LANG}`;
 async function api(path, body) {
-  const res = await fetch(path, body === undefined ? {} : {
+  const res = await fetch(withLang(path), body === undefined ? {} : {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
@@ -38,12 +42,12 @@ async function loadStatus() {
   const badge = $("#mode-badge");
   badge.textContent = s.mode.toUpperCase();
   badge.className = `badge ${s.mode}`;
-  $("#models").textContent = `임베딩 ${s.models.embed} · 리랭커 ${s.reranker.model} · 답변 ${s.models.chat}`;
+  $("#models").textContent = tr("models.line", { embed: s.models.embed, reranker: s.reranker.model, chat: s.models.chat });
   const note = $("#mode-note");
   if (s.mode === "mock") {
     note.hidden = false;
     note.textContent = "";
-    note.append(el("b", "", "MOCK 모드 — 결과는 동작 확인용이며 품질을 뜻하지 않습니다. "), s.mode_reason + " ");
+    note.append(el("b", "", `${tr("mode.mock_title")} — ${tr("mode.mock_body")} `), s.mode_reason + " ");
     for (const h of s.hints) { note.append(el("code", "", h), " "); }
   } else {
     note.hidden = true;
@@ -57,9 +61,9 @@ function renderReranker(r) {
   const busy = r.state === "downloading" || r.state === "loading" || r.state === "idle";
   box.hidden = !(busy || r.state === "error");
   $("#rr-label").textContent =
-    r.state === "downloading" ? "리랭커 모델 내려받는 중" :
-    r.state === "loading" ? "리랭커 모델 불러오는 중" :
-    r.state === "error" ? `리랭커 준비 실패: ${r.error || ""}` : "리랭커 준비 중";
+    r.state === "downloading" ? tr("rr.downloading") :
+    r.state === "loading" ? tr("rr.loading") :
+    r.state === "error" ? tr("rr.error", { error: r.error || "" }) : tr("rr.idle");
   const pct = r.percent ?? (r.state === "loading" ? 100 : 0);
   $("#rr-bar").style.width = `${pct}%`;
   $("#rr-pct").textContent = r.total_bytes ? `${pct}% (${fmtMB(r.done_bytes)} / ${fmtMB(r.total_bytes)})` : "";
@@ -81,7 +85,7 @@ function renderChips() {
   for (const q of state.status.questions) {
     const b = el("button", "chip" + (q.note ? " limit" : ""), q.q);
     b.type = "button";
-    if (q.note) b.title = "한계 사례: " + q.note;
+    if (q.note) b.title = tr("note.limit", { note: q.note });
     b.addEventListener("click", () => { $("#question").value = q.q; runCompare(); });
     box.append(b);
   }
@@ -115,7 +119,7 @@ async function runCompare() {
     document.body.dataset.state = "compared";  // 스크린샷 스크립트가 기다리는 신호
   } catch (e) {
     document.body.dataset.state = "error";
-    showNote(`오류: ${e.message}`);
+    showNote(tr("error.prefix", { message: e.message }));
   } finally {
     $("#btn-compare").disabled = false;
   }
@@ -157,10 +161,10 @@ function renderCard(c, side, maxScore, gold) {
   if (gold && c.text.includes(gold)) li.classList.add("gold");
   const top = el("div", "card-top");
   top.append(el("span", "rank", c.rank), el("span", "src", c.source));
-  if (li.classList.contains("gold")) top.append(el("b", "gold-tag", "정답"));
+  if (li.classList.contains("gold")) top.append(el("b", "gold-tag", tr("card.gold")));
   if (c.move !== undefined) {
     const m = el("b", `move ${moveCls(c.move)}`, moveText(c.move));
-    m.title = side === "after" ? `리랭킹 전 ${c.rank_before}위 → 후 ${c.rank}위` : `리랭킹 후 ${c.rank_after}위`;
+    m.title = side === "after" ? tr("card.move_after", { before: c.rank_before, after: c.rank }) : tr("card.move_before", { after: c.rank_after });
     top.append(m);
   }
   const bar = el("div", "scorebar");
@@ -178,27 +182,28 @@ function renderCompare(r) {
   const after = $("#col-after");
   before.textContent = "";
   after.textContent = "";
-  $("#scale-before").textContent = r.scales.before;
-  $("#scale-after").textContent = r.scales.after;
+  // 척도 이름은 응답의 한국어 값 대신 화면 언어 표에서 찾는다(응답 JSON 은 그대로)
+  $("#scale-before").textContent = tr(`scale.${r.retriever}`);
+  $("#scale-after").textContent = tr("scale.after");
   const gold = goldAnchor(r.question);
   // 막대 길이: 코사인·리랭커는 0~1 그대로, BM25·RRF 는 상한이 없어 열의 최댓값 기준
   const maxB = r.retriever === "vector" ? 1 : Math.max(...r.before.map((c) => c.score), 1e-9);
   for (const c of r.before) before.append(renderCard(c, "before", maxB, gold));
-  if (!r.before.length) before.append(el("li", "empty", "1단계 검색기가 찾은 후보가 없습니다."));
+  if (!r.before.length) before.append(el("li", "empty", tr("empty.no_candidates")));
 
   if (r.after === null) {
-    after.append(el("li", "pending", "리랭커 모델을 준비하는 중입니다. 준비되면 자동으로 채워집니다(위 진행 막대)."));
+    after.append(el("li", "pending", tr("pending.reranker")));
   } else {
     for (const c of r.after) after.append(renderCard(c, "after", 1, gold));
   }
   const notes = [];
-  if (r.no_evidence) notes.push(`리랭커 최고 점수가 문턱값(${r.min_score})보다 낮아 '근거 부족'으로 판단했습니다 — 답변 B는 답을 지어내지 않습니다.`);
+  if (r.no_evidence) notes.push(tr("note.no_evidence", { min: r.min_score }));
   if (gold && r.before.length && !r.before.some((c) => c.text.includes(gold)))
-    notes.push("정답 문단이 1단계 후보 안에 없습니다. 리랭커는 후보 안에서만 순서를 바꾸므로 살릴 수 없습니다.");
+    notes.push(tr("note.gold_missing"));
   const q = state.status.questions.find((x) => x.q === r.question);
-  if (q && q.note && $("#collection").value === "samples") notes.push("한계 사례: " + q.note);
+  if (q && q.note && $("#collection").value === "samples") notes.push(tr("note.limit", { note: q.note }));
   const t = r.timings_ms;
-  notes.push(r.mode === "real" ? `시간: 임베딩 ${t.embed}ms · 1단계 ${t.retrieve}ms · 리랭킹 ${t.rerank}ms` : "");
+  notes.push(r.mode === "real" ? tr("note.timings", { embed: t.embed, retrieve: t.retrieve, rerank: t.rerank }) : "");
   showNote(notes.filter(Boolean).join("\n"));
   animateAfter();
   renderDistribution(r);
@@ -265,8 +270,8 @@ function renderDistribution(r) {
   const ns = "http://www.w3.org/2000/svg";
   const gold = goldAnchor(r.question);
   const rows = [
-    { label: "1단계", cls: "b", cards: r.before },
-    { label: "리랭커", cls: "a", cards: r.after },
+    { label: tr("dist.stage1"), cls: "b", cards: r.before },
+    { label: tr("dist.reranker"), cls: "a", cards: r.after },
   ];
   const text = (x, y, t, anchor = "start") => {
     const n = document.createElementNS(ns, "text");
@@ -279,7 +284,7 @@ function renderDistribution(r) {
     const top = Math.max(...row.cards.map((c) => c.score));  // 이 열의 1위 점수 = 오른쪽 끝
     const line = document.createElementNS(ns, "line");
     Object.entries({ x1: x0, x2: x0 + span, y1: y, y2: y }).forEach(([k, v]) => line.setAttribute(k, v));
-    svg.append(line, text(0, y + 4, row.label), text(x0 + span + 8, y + 4, "1위"));
+    svg.append(line, text(0, y + 4, row.label), text(x0 + span + 8, y + 4, tr("dist.top")));
     // 정답 점은 맨 위에 보이도록 마지막에 그린다
     const cards = [...row.cards].sort((a, b) => Number(gold && a.text.includes(gold)) - Number(gold && b.text.includes(gold)));
     for (const c of cards) {
@@ -295,12 +300,8 @@ function renderDistribution(r) {
   svg.append(text(x0, 88, "0"));
   // 요약 문장: 2위 점수가 1위의 몇 %인지(작을수록 1위가 확실히 앞선다) — 그림의 2위 점 위치와 같은 값
   const pb = Math.round(ratio.before * 100), pa = Math.round(ratio.after * 100);
-  const verdict = pa < pb
-    ? "리랭커가 1위를 나머지와 더 뚜렷하게 갈라놓았습니다."
-    : "이 질문에서는 리랭커도 1위와 2위를 크게 가르지 못했습니다.";
-  $("#dist-text").textContent =
-    `1위와 2위 차이 — 2위 점수가 1위의 몇 %인가: 1단계 ${pb}% → 리랭커 ${pa}%. ` +
-    `작을수록 1위가 확실히 앞선다는 뜻입니다. ${verdict}`;
+  const verdict = pa < pb ? tr("dist.verdict_better") : tr("dist.verdict_same");
+  $("#dist-text").textContent = `${tr("dist.sep", { before: pb, after: pa })} ${verdict}`;
 }
 
 // ---------- 답변 A/B 스트리밍 ----------
@@ -308,11 +309,15 @@ function resetAnswers() {
   for (const id of ["#answer-a", "#answer-b"]) {
     const a = $(id);
     a.dataset.done = "false";
-    a.querySelector("summary").textContent = "생각 과정";
+    const sum = a.querySelector("summary");
+    sum.dataset.i18n = "answer.think";  // 언어를 바꾸면 라벨도 따라 바뀐다(생각 중에는 아래에서 속성을 뗀다)
+    delete sum.dataset.tokens;
+    sum.textContent = tr("answer.think");
     a.querySelector(".notice").hidden = true;
     const t = a.querySelector(".text");
     t.className = "text dim";
-    t.textContent = "아직 답변이 없습니다.";
+    t.dataset.i18n = "answer.none";
+    t.textContent = tr("answer.none");
   }
 }
 
@@ -331,7 +336,7 @@ async function runAnswers() {
   $("#btn-stop").hidden = false;
   document.body.dataset.answer = "streaming";
   try {
-    const res = await fetch("/api/answer", {
+    const res = await fetch(withLang("/api/answer"), {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...state.lastReq, sides: "AB" }), signal: ctrl.signal,
     });
@@ -358,7 +363,7 @@ async function runAnswers() {
       if (a.dataset.done !== "true") {
         const n = a.querySelector(".notice");
         n.hidden = false;
-        n.textContent = e.name === "AbortError" ? "중지했습니다." : `오류: ${e.message}`;
+        n.textContent = e.name === "AbortError" ? tr("answer.stopped") : tr("error.prefix", { message: e.message });
       }
     }
   } finally {
@@ -372,22 +377,31 @@ function handleAnswerEvent(ev) {
   if (!ev.side) return;
   const box = $(ev.side === "A" ? "#answer-a" : "#answer-b");
   const text = box.querySelector(".text");
-  if (text.classList.contains("dim")) { text.className = "text"; text.textContent = ""; }
+  if (text.classList.contains("dim")) { text.className = "text"; text.textContent = ""; text.removeAttribute("data-i18n"); }
   if (ev.type === "thinking") {
-    box.querySelector("summary").textContent = `생각 중… ${ev.tokens}토큰`;
+    const sum = box.querySelector("summary");
+    sum.removeAttribute("data-i18n");
+    sum.dataset.tokens = ev.tokens;
+    sum.textContent = tr("answer.thinking_now", { tokens: ev.tokens });
   } else if (ev.type === "content") {
-    text.textContent += ev.text;
+    text.textContent += localAnswer(ev.text);
   } else if (ev.type === "notice" || ev.type === "error") {
     const n = box.querySelector(".notice");
     n.hidden = false;
     n.textContent = ev.text;
   } else if (ev.type === "end") {
     const s = box.querySelector("summary");
-    s.textContent = s.textContent.replace("생각 중…", "생각") + (ev.cached ? " (저장된 답)" : "");
-    renderCitations(text, ev.text || text.textContent, ev.side);
+    if (s.dataset.tokens) {
+      s.textContent = tr("answer.thinking_done", { tokens: s.dataset.tokens }) + (ev.cached ? ` ${tr("answer.cached")}` : "");
+    }
+    renderCitations(text, localAnswer(ev.text) || text.textContent, ev.side);
     box.dataset.done = "true";  // 스크린샷 스크립트가 기다리는 신호
   }
 }
+
+// '근거 없음' 답은 서버가 한국어 고정 문구로 보낸다(답변 데이터). 화면 언어로 바꿔 보여 준다.
+const NO_EVIDENCE_KO = "문서에서 근거를 찾지 못했습니다.";
+const localAnswer = (text) => (text === NO_EVIDENCE_KO ? tr("answer.no_evidence") : text);
 
 // 답 속의 [n]을 누르면 그 근거 카드가 깜빡인다(A=전 열, B=후 열의 n위)
 function renderCitations(node, answer, side) {
@@ -418,15 +432,15 @@ async function runEval() {
   const table = $("#eval-table");
   btn.disabled = true;
   table.dataset.ready = "false";
-  $("#eval-status").textContent = "계산 중…";
+  $("#eval-status").textContent = tr("eval.running");
   try {
     const { top_k, chunking, title_prefix } = currentRequest();
     const r = await api("/api/eval", { top_k, chunking, title_prefix });
+    state.lastEval = r;
     renderEval(r);
-    $("#eval-status").textContent = `리랭커 ${r.reranker} · 청킹 ${r.chunking.strategy}${r.chunking.title_prefix ? "(제목 붙임)" : ""} · top-k ${r.top_k} · 순서가 바뀐 (질문×검색기) 조합 ${r.orders_changed}개`;
     table.dataset.ready = "true";
   } catch (e) {
-    $("#eval-status").textContent = `오류: ${e.message}`;
+    $("#eval-status").textContent = tr("error.prefix", { message: e.message });
   } finally {
     btn.disabled = false;
   }
@@ -439,54 +453,65 @@ function cmpCell(before, after, fmt) {
   return el("td", cls, `${b} → ${a}`);
 }
 
+// 응답의 explain(한국어 값) 대신 순위로 화면 언어 문장을 만든다
+function explainRanks(b, a) {
+  if (b === null) return tr("explain.outside");
+  if (a < b) return tr("explain.up", { before: b, after: a });
+  if (a > b) return tr("explain.down", { before: b, after: a });
+  return tr("explain.same", { before: b });
+}
+
 function renderEval(r) {
-  const names = { keyword: "키워드", vector: "벡터", hybrid: "하이브리드" };
+  $("#eval-status").textContent = tr("eval.status", {
+    reranker: r.reranker, strategy: r.chunking.strategy, prefix: r.chunking.title_prefix ? tr("eval.prefix_on") : "",
+    top_k: r.top_k, changed: r.orders_changed });
+  const names = { keyword: tr("retriever.keyword"), vector: tr("retriever.vector"), hybrid: tr("retriever.hybrid") };
   const t = $("#eval-table");
   t.textContent = "";
   const head = el("tr");
-  ["1단계 검색기", "hit@1 전 → 후", "MRR 전 → 후", "순서 바뀐 질문"].forEach((h) => head.append(el("th", "", h)));
+  [tr("eval.col_retriever"), tr("eval.col_hit"), tr("eval.col_mrr"), tr("eval.col_changed")].forEach((h) => head.append(el("th", "", h)));
   t.append(head);
   for (const [name, row] of Object.entries(r.table)) {
-    const tr = el("tr");
-    tr.append(el("td", "", names[name] || name),
+    const rowEl = el("tr");
+    rowEl.append(el("td", "", names[name] || name),
       cmpCell(row.hit1_before, row.hit1_after, (x) => `${x}/${r.n_questions}`),
       cmpCell(row.mrr_before, row.mrr_after, (x) => x.toFixed(2)),
       el("td", "", String(row.orders_changed)));
-    t.append(tr);
+    t.append(rowEl);
   }
   const q = $("#eval-questions");
   q.textContent = "";
   const h2 = el("tr");
-  ["질문", ...Object.keys(r.table).map((n) => `${names[n] || n} 정답 순위`), "왜?"].forEach((h) => h2.append(el("th", "", h)));
+  [tr("eval.col_question"), ...Object.keys(r.table).map((n) => tr("eval.col_rank", { name: names[n] || n })), tr("eval.col_why")].forEach((h) => h2.append(el("th", "", h)));
   q.append(h2);
   for (const row of r.questions) {
-    const tr = el("tr");
-    tr.append(el("td", "", row.q));
+    const rowEl = el("tr");
+    rowEl.append(el("td", "", row.q));
     for (const n of Object.keys(r.table)) {
       const [b, a] = row.ranks[n];
       const cls = b === null ? "worse" : a < b ? "better" : a > b ? "worse" : "";
-      const td = el("td", cls, `${b ?? "밖"} → ${a ?? "밖"}`);
-      td.title = row.explain[n];
-      tr.append(td);
+      const td = el("td", cls, `${b ?? tr("eval.outside")} → ${a ?? tr("eval.outside")}`);
+      td.title = explainRanks(b, a);
+      rowEl.append(td);
     }
-    tr.append(el("td", "note", row.note || ""));
-    q.append(tr);
+    rowEl.append(el("td", "note", row.note || ""));
+    q.append(rowEl);
   }
 }
 
 // ---------- 내 문서 탭 ----------
 async function indexDocs(body) {
   const status = $("#index-status");
-  status.textContent = "색인하는 중…";
+  status.textContent = tr("docs.indexing");
   try {
     const r = await api("/api/index", { ...body, chunking: $("#chunking").value, title_prefix: $("#title-prefix").checked });
-    status.textContent = `문서 ${r.docs}개 → 청크 ${r.chunks}개 색인 완료: ${r.files.join(", ")}`;
+    status.textContent = tr("docs.done", { docs: r.docs, chunks: r.chunks, files: r.files.join(", ") });
     const opt = $("#collection option[value=mine]");
     opt.disabled = false;
     $("#collection").value = "mine";
     showTab("compare");
   } catch (e) {
-    status.textContent = `오류: ${e.message}`;
+    status.textContent = tr("error.prefix", { message: e.message });
   }
 }
 
@@ -496,8 +521,20 @@ async function readFiles(fileList) {
     if (!/\.(md|txt)$/i.test(f.name) || f.size > 1_000_000) continue;
     files.push({ name: f.name, text: await f.text() });  // 브라우저가 내용을 읽어 JSON 으로 보낸다
   }
-  if (!files.length) { $("#index-status").textContent = ".md / .txt 파일이 없습니다(파일당 1MB 이하)."; return; }
+  if (!files.length) { $("#index-status").textContent = tr("docs.no_files"); return; }
   indexDocs({ files });
+}
+
+// ---------- 언어 바꾸기 ----------
+// 정적 문구는 applyStaticTexts() 가, 서버가 만든 문구(모드 안내)는 상태를 다시 받아서, 그린 결과는 다시 그려서 바꾼다.
+async function changeLanguage(lang) {
+  setLang(lang);
+  try {
+    await loadStatus();
+    renderChips();
+  } catch (e) { /* 서버 상태를 못 읽어도 정적 문구는 이미 바뀌었다 */ }
+  if (state.lastResult) renderCompare(state.lastResult);
+  if (state.lastEval) renderEval(state.lastEval);
 }
 
 // ---------- 탭·이벤트 연결 ----------
@@ -524,6 +561,7 @@ function wire() {
   $("#btn-answer").addEventListener("click", runAnswers);
   $("#btn-stop").addEventListener("click", stopAnswers);
   $("#btn-eval").addEventListener("click", runEval);
+  $("#lang-select").addEventListener("change", (e) => changeLanguage(e.target.value));
   $("#btn-rr-retry").addEventListener("click", async () => { await api("/api/reranker/retry", {}); loadStatus(); });
   $("#btn-index-folder").addEventListener("click", () => {
     const folder = $("#folder-path").value.trim();
@@ -539,6 +577,7 @@ function wire() {
 }
 
 (async function init() {
+  applyStaticTexts();
   wire();
   try {
     await loadStatus();
@@ -546,6 +585,6 @@ function wire() {
     if (state.status.mine.docs) $("#collection option[value=mine]").disabled = false;
     document.body.dataset.state = "ready";
   } catch (e) {
-    showNote(`서버 상태를 읽지 못했습니다: ${e.message}`);
+    showNote(tr("error.status", { message: e.message }));
   }
 })();

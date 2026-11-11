@@ -24,6 +24,7 @@ import sqlite_vec
 
 from .bm25 import BM25
 from .chunking import Chunk, ChunkOptions, Document, chunk_documents
+from .i18n import RagError, os_error_to_rag_error
 
 # 디스크에 남길 색인 파일 수. 서버 메모리 색인 상한(server.MAX_INDEXES=6)보다 넉넉해야 한다
 # (샘플·내 문서 2 × 청킹 3 × 제목 2 = 12 조합 + 여유). 테스트가 두 값의 관계를 검사한다.
@@ -142,12 +143,19 @@ def load_folder(folder: Path, max_files: int = 200, max_bytes: int = 1_000_000) 
     """폴더 안의 .md/.txt 파일을 읽는다(하위 폴더 포함, 파일 수·크기 상한)."""
     folder = Path(folder).expanduser()
     if not folder.is_dir():
-        raise ValueError(f"폴더가 아닙니다: {folder}")
-    files = sorted(p for p in folder.rglob("*") if p.suffix.lower() in (".md", ".txt") and p.is_file())
+        raise RagError("not_a_folder", path=str(folder))
     docs = []
-    for p in files[:max_files]:
-        if p.stat().st_size > max_bytes:
-            continue
-        rel = p.relative_to(folder).as_posix()
-        docs.append(Document(rel.rsplit(".", 1)[0], rel, p.read_text(encoding="utf-8", errors="replace")))
+    try:
+        files = sorted(p for p in folder.rglob("*") if p.suffix.lower() in (".md", ".txt") and p.is_file())
+        for p in files[:max_files]:
+            try:
+                if p.stat().st_size > max_bytes:
+                    continue
+                text = p.read_text(encoding="utf-8", errors="replace")
+            except OSError as e:  # PermissionError 등: 어느 파일이 왜 안 읽히는지 알려 준다
+                raise RagError("file_access", path=str(p), reason=e.strerror or type(e).__name__) from e
+            rel = p.relative_to(folder).as_posix()
+            docs.append(Document(rel.rsplit(".", 1)[0], rel, text))
+    except OSError as e:  # 폴더 목록을 읽지 못한 경우
+        raise os_error_to_rag_error(e) from e
     return docs
