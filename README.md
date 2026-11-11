@@ -5,7 +5,7 @@
 A local, keyless demo that walks through RAG (retrieval-augmented generation): chunking, embeddings, vector / keyword / hybrid search and a grounded answer. Its centerpiece is a before/after view that shows how a cross-encoder reranker reorders the retrieved passages and changes the final answer. Run it with `uv run rag-rerank`; without Ollama it falls back to a deterministic mock mode that needs no network and still reproduces the key before/after scene (with different numbers).
 
 ![Screen recording: after picking a question, the correct card that was 6th in the "before reranking" list slides up to 1st place in the "after reranking" list](docs/images/00-hero.gif)
-<sub>Click an example question and the correct passage that was 6th on the left (before reranking) moves up to 1st on the right (after reranking). Green lines mark cards that moved up, red lines cards that moved down. (Real mode, recorded on a MacBook M3 16GB)</sub>
+<sub>Click an example question and the correct passage that was 6th on the left (before reranking) moves up to 1st on the right (after reranking). Green lines mark cards that moved up, red lines cards that moved down. (Real mode, recorded on a MacBook M3 16GB. The web screenshots in this document show the Korean screen, not re-shot after the English screen was added in v0.2.0; see [Choose the screen language](#choose-the-screen-language), and each caption gives the English wording of the Korean labels.)</sub>
 
 ## One-line summary
 
@@ -39,7 +39,7 @@ cd ai-lab-rag-rerank
 uv run rag-rerank --mock
 ```
 
-The terminal prints a `화면: http://127.0.0.1:8765` line ("화면" = "screen") and a browser opens. On a headless server, over SSH or in a container where no browser can open, open that address yourself. To keep the browser from opening automatically, run `uv run rag-rerank --mock --no-browser` (or set `RAG_NO_BROWSER=1`). If you run inside Docker, see [Troubleshooting](#troubleshooting).
+The terminal prints a `UI: http://127.0.0.1:8765  (Ctrl+C to quit)` line and a browser opens. On a headless server, over SSH or in a container where no browser can open, open that address yourself. To keep the browser from opening automatically, run `uv run rag-rerank --mock --no-browser` (or set `RAG_NO_BROWSER=1`). If you run inside Docker, see [Troubleshooting](#troubleshooting).
 
 `--mock` is the **practice mode**. It uses no network and no model; fake embeddings, a fake reranker and a fake answer (which copies a sentence from the evidence verbatim) always produce exactly the same result. The fake models imitate "same meaning, different wording" with a small hand-made thesaurus tuned to the sample documents (for example `중학생` (middle schooler) ↔ `만 13세` (age 13 or older)), so **the scene where reranking lifts the correct passage is visible in mock mode too.** However, the score and rank numbers and the answer sentences differ from real mode and say nothing about search quality (a `MOCK` badge appears on screen). The actual mock output is pasted in [Follow along in practice (mock) mode](#follow-along-in-practice-mock-mode).
 
@@ -56,40 +56,68 @@ The first comparison downloads the reranker model (about 588MB) once. From an em
 ![First screen: 1 example question buttons](docs/images/01-start.png)
 <sub>The first screen. The green badge at the top shows the current mode (REAL or MOCK), 1 marks the 14 example questions you can click, and below them you choose the stage-1 retriever (vector, keyword, hybrid). Buttons with dotted borders are "limit cases" that reranking struggles with.</sub>
 
-If you prefer the terminal only, you can see the same comparison as text. The following is **real-mode** output (for mock, add `--mock` at the end; its result is in the next section).
+If you prefer the terminal only, you can see the same comparison as text. The following is **real-mode** output (for mock, add `--mock` at the end; its result is in the [practice-mode section](#follow-along-in-practice-mock-mode)). The numbers were measured in real mode; the labels were then switched to the English wording that v0.2.0 prints (the sample documents and questions are Korean data and stay Korean).
 
 ```bash
 uv run rag-rerank ask "책을 늦게 돌려주면 벌금을 내나요?" --retriever keyword
 ```
 
 ```text
-[REAL] Ollama와 모델이 준비되어 실제 모드로 실행합니다.
-질문: 책을 늦게 돌려주면 벌금을 내나요?
-검색기: keyword · top-k 8 · 청킹 paragraph(제목 붙임) · 색인 33개 청크
+[REAL] Ollama and the models are ready, running in real mode.
+Question: 책을 늦게 돌려주면 벌금을 내나요?
+Retriever: keyword | top-k 8 | chunking paragraph (with titles) | index 33 chunks
 
-리랭킹 전  [BM25 점수(상한 없음)]
-  순위  점수      이동  출처 / 내용
+Before reranking  [BM25 score (no upper bound)]
+  rank  score     move  source / text
     1   8.1094    ▼1    library-guide.md > 분실과 훼손 | 빌린 책을 잃어버리면 같은 책을 새로 사서 돌려주거나 책 정가를 변…
     2   7.7518    ▼2    bike-share-guide.md > 안전 | 헬멧은 대여소 옆 헬멧 보관함에서 무료로 빌릴 수 있습니다. 쓴 헬…
     3   5.2221    ▼2    bike-share-guide.md > 고장과 사고 | 자전거가 고장 나면 앱의 '고장 신고'에 자전거 번호와 증상을 적어…
     4   3.5029    ▲3    library-guide.md > 연체 | 우리 도서관은 연체료를 받지 않습니다. 그 대신 늦게 반납한 날짜 …
     ...
 
-리랭킹 후  [리랭커 점수(0~1)]
-  순위  점수      이동  전순위  출처 / 내용
+After reranking  [Reranker score (0 to 1)]
+  rank  score     move  was    source / text
     1   0.0308    ▲3       4    library-guide.md > 연체 | 우리 도서관은 연체료를 받지 않습니다. 그 대신 늦게 반납한 날짜 …
     2   0.0023    ▼1       1    library-guide.md > 분실과 훼손 | 빌린 책을 잃어버리면 같은 책을 새로 사서 돌려주거나 책 정가를 변…
     ...
-1위와 2위 차이: 2위 점수가 1위의 96%(1단계) → 7%(리랭커) — 작을수록 1위가 확실히 앞섬
+Gap between #1 and #2: #2 score is 96% of #1 (stage 1) -> 7% (reranker); smaller = clearer winner
 
-시간(ms): 임베딩 0 · 1단계 0 · 리랭킹 747
+Time (ms): embed 0 | stage 1 0 | rerank 747
 ```
 
 (The question means "Do I pay a fine if I return a book late?". `...` marks lines trimmed for space. The correct passage ("our library does not charge late fees"), 4th after keyword-search stage 1, becomes 1st after reranking.)
 
+## Choose the screen language
+
+Since v0.2.0 the terminal output and the web screen are available in **English and Korean**. The sample documents, the example questions and the mock answers are Korean data and stay Korean in both languages; only the labels, notices and error messages change.
+
+**Terminal.** The language is decided in this order, and anything that is not Korean means English:
+
+1. `--lang en|ko` (a top-level option; it works before or after the sub-command)
+2. the `RAG_LANG` environment variable
+3. `LC_ALL`, then `LC_MESSAGES`, then `LANG`
+
+```bash
+uv run rag-rerank --lang en eval --mock    # English
+uv run rag-rerank --lang ko eval --mock    # Korean
+RAG_LANG=ko uv run rag-rerank eval --mock  # Korean, via the environment
+```
+
+![Terminal: the score card printed in English](docs/images/10-lang-eval.png)
+<sub>The score card (`eval --mock`) in English. The same command with `--lang ko` prints the Korean labels (`성적표 — 질문 14개 …`).</sub>
+
+`--json` output, the `/api/*` JSON keys, the cache files and exit codes do not depend on the language. A bad value such as `--lang fr` is rejected with a usage error (exit code 2).
+
+**Web screen.** The header has a `Language` menu with `English` and `한국어`. The choice is stored in the browser (`localStorage`, key `rag-rerank-lang`) and kept after a reload. Only on the very first visit, when nothing is stored yet, the browser language decides (Korean if it starts with `ko`, otherwise English). You can also force a language with an address such as `http://127.0.0.1:8765/?lang=ko`. Error messages sent by the server follow the same language (`?lang=`, then the `Accept-Language` header, then the server environment); the response JSON shape does not change.
+
+**Known limits.**
+- A `?lang=` address wins over the language stored by the menu. If you open `/?lang=ko` and then pick `English`, a reload goes back to Korean until you remove `?lang=` from the address.
+- The terminal score-card image (`10-lang-eval.png`) shows the `[MOCK]` notice line at the bottom because of how the image was captured; in a real terminal it is printed first. The numbers and labels are the same.
+- The browser-side check in `tests/test_web_js.py` is skipped as a whole when `node` is not installed, including its node-free guard.
+
 ## Follow along in practice (mock) mode
 
-Even without Ollama, `--mock` alone reproduces everything below. The output was pasted from a real run in this repository, and because mock is deterministic you get the same numbers on any computer.
+Even without Ollama, `--mock` alone reproduces everything below. The output was pasted from a real run in this repository with `--lang en`, and because mock is deterministic you get the same numbers on any computer. (With a Korean locale or `--lang ko` the labels are Korean, as in [README.ko.md](README.ko.md).)
 
 **1) Start the screen**
 
@@ -98,11 +126,11 @@ uv run rag-rerank --mock --no-browser
 ```
 
 ```text
-[MOCK] --mock 플래그(또는 RAG_MODE=mock)로 mock 모드를 켰습니다.
-화면: http://127.0.0.1:8765  (끝내려면 Ctrl+C)
+[MOCK] Mock mode was turned on by the --mock flag (or RAG_MODE=mock).
+UI: http://127.0.0.1:8765  (Ctrl+C to quit)
 ```
 
-Open this address in a browser and click the first example question, `중학생도 공유자전거를 탈 수 있나요?` ("Can a middle schooler ride a shared bike too?"). The correct passage (`만 13세 이상이면 누구나 …`, "anyone aged 13 or older …") moves from 6th on the left (before reranking) to 1st on the right (after reranking) and gets a `▲5` badge. The movement is the same as in the real-mode screenshot, and the reranker score is 0.4292 versus 0.0395 in real mode. Click `답변 만들기` ("Create answers") and answers A and B appear immediately.
+Open this address in a browser and click the first example question, `중학생도 공유자전거를 탈 수 있나요?` ("Can a middle schooler ride a shared bike too?"). The correct passage (`만 13세 이상이면 누구나 …`, "anyone aged 13 or older …") moves from 6th on the left (before reranking) to 1st on the right (after reranking) and gets a `▲5` badge. The movement is the same as in the real-mode screenshot, and the reranker score is 0.4292 versus 0.0395 in real mode. Click `Make answers` and answers A and B appear immediately.
 
 **2) See the same comparison in the terminal**
 
@@ -111,12 +139,12 @@ uv run rag-rerank ask "중학생도 공유자전거를 탈 수 있나요?" --moc
 ```
 
 ```text
-[MOCK] --mock 플래그(또는 RAG_MODE=mock)로 mock 모드를 켰습니다.
-질문: 중학생도 공유자전거를 탈 수 있나요?
-검색기: hybrid · top-k 8 · 청킹 paragraph(제목 붙임) · 색인 33개 청크
+[MOCK] Mock mode was turned on by the --mock flag (or RAG_MODE=mock).
+Question: 중학생도 공유자전거를 탈 수 있나요?
+Retriever: hybrid | top-k 8 | chunking paragraph (with titles) | index 33 chunks
 
-리랭킹 전  [RRF 점수(Σ 1/(60+순위))]
-  순위  점수      이동  출처 / 내용
+Before reranking  [RRF score (sum of 1/(60+rank))]
+  rank  score     move  source / text
     1   0.032     ▼3    bike-share-guide.md > 고장과 사고 | 자전거를 잃어버리거나 일부러 망가뜨리면 수리비 또는 자전거 가격 3…
     2   0.03151   ▼3    bike-share-guide.md > 고장과 사고 | 자전거가 고장 나면 앱의 '고장 신고'에 자전거 번호와 증상을 적어…
     3   0.03125   –     bike-share-guide.md > 초과 요금 | 자전거를 4시간 넘게 반납하지 않으면 분실 신고로 처리되고 앱 이용…
@@ -126,8 +154,8 @@ uv run rag-rerank ask "중학생도 공유자전거를 탈 수 있나요?" --moc
     7   0.02938   ▼1    library-guide.md > 분실과 훼손 | 빌린 책을 잃어버리면 같은 책을 새로 사서 돌려주거나 책 정가를 변…
     8   0.02927   ▲2    bike-share-guide.md > 대여와 반납 | 대여소의 자전거 단말기에 앱 QR 코드를 찍으면 잠금이 풀립니다. …
 
-리랭킹 후  [리랭커 점수(0~1)]
-  순위  점수      이동  전순위  출처 / 내용
+After reranking  [Reranker score (0 to 1)]
+  rank  score     move  was    source / text
     1   0.4292    ▲5       6    bike-share-guide.md > 가입과 이용권 | 누리 앱에서 휴대전화 본인 인증을 하면 가입할 수 있습니다. 만 1…
     2   0.3586    ▲3       5    bike-share-guide.md > 운영 시간 | 공유자전거는 연중 24시간 빌릴 수 있습니다. 다만 12월부터 2월…
     3   0.2008    –        3    bike-share-guide.md > 초과 요금 | 자전거를 4시간 넘게 반납하지 않으면 분실 신고로 처리되고 앱 이용…
@@ -137,15 +165,15 @@ uv run rag-rerank ask "중학생도 공유자전거를 탈 수 있나요?" --moc
     7   0.0708    ▼3       4    library-guide.md > 회원증 | 회원증을 잃어버리면 재발급 수수료 없이 다시 만들 수 있습니다. 모…
     8   0.0708    ▼1       7    library-guide.md > 분실과 훼손 | 빌린 책을 잃어버리면 같은 책을 새로 사서 돌려주거나 책 정가를 변…
 
-1위와 2위 차이: 2위 점수가 1위의 98%(1단계) → 84%(리랭커) — 작을수록 1위가 확실히 앞섬
+Gap between #1 and #2: #2 score is 98% of #1 (stage 1) -> 84% (reranker); smaller = clearer winner
 
-시간(ms): 임베딩 0 · 1단계 0 · 리랭킹 0
+Time (ms): embed 0 | stage 1 0 | rerank 0
 
-답변 A (리랭킹 전 상위 3개 근거): 근거에 따르면 자전거를 잃어버리거나 일부러 망가뜨리면 수리비 또는 자전거 가격 30만 원 안에서 실제 손해를 배상해야 합니다. [1]
-  인용: [1]=bike-share-guide#11
+Answer A (top 3 evidence before reranking): 근거에 따르면 자전거를 잃어버리거나 일부러 망가뜨리면 수리비 또는 자전거 가격 30만 원 안에서 실제 손해를 배상해야 합니다. [1]
+  Citations: [1]=bike-share-guide#11
 
-답변 B (리랭킹 후 상위 3개 근거): 근거에 따르면 만 13세 이상이면 누구나 가입할 수 있고, 만 13세 이상 18세 미만은 보호자 동의가 필요합니다. [1]
-  인용: [1]=bike-share-guide#0
+Answer B (top 3 evidence after reranking): 근거에 따르면 만 13세 이상이면 누구나 가입할 수 있고, 만 13세 이상 18세 미만은 보호자 동의가 필요합니다. [1]
+  Citations: [1]=bike-share-guide#0
 ```
 
 How to read it:
@@ -163,17 +191,17 @@ uv run rag-rerank eval --mock
 ```
 
 ```text
-[MOCK] --mock 플래그(또는 RAG_MODE=mock)로 mock 모드를 켰습니다.
-성적표 — 질문 14개, top-k 8, 리랭커 mock-overlap
-  검색기    hit@1 전→후    MRR 전→후        순서 바뀐 질문
+[MOCK] Mock mode was turned on by the --mock flag (or RAG_MODE=mock).
+Score card - 14 questions, top-k 8, reranker mock-overlap
+  retriever  hit@1 before->after  MRR before->after  reordered questions
   keyword    5/14 →  8/14   0.48 → 0.64      9
   vector     5/14 →  8/14   0.51 → 0.68      14
   hybrid     4/14 →  9/14   0.50 → 0.72      13
 
-순서가 바뀐 (질문 × 검색기) 조합: 36
+(question x retriever) pairs reordered: 36
 ```
 
-The numbers differ from real mode ([step 5](#step-5-check-with-the-scorecard-that-it-was-not-luck)). The mock thesaurus was **made on purpose** so the reranking scene shows up in the example questions, so this table is not evidence that reranking works; it is practice for getting used to the screen flow. To see how much reranking really helps, check the real-mode scorecard in step 5 (hybrid hit@1 7/14 → 11/14). The **실험** ("Experiment") tab of the web screen opened with mock also shows the practice numbers above.
+The numbers differ from real mode ([step 5](#step-5-check-with-the-scorecard-that-it-was-not-luck)). The mock thesaurus was **made on purpose** so the reranking scene shows up in the example questions, so this table is not evidence that reranking works; it is practice for getting used to the screen flow. To see how much reranking really helps, check the real-mode scorecard in step 5 (hybrid hit@1 7/14 → 11/14). The **Experiment** tab (`실험` in the Korean screen) of the web screen opened with mock also shows the practice numbers above.
 
 **4) Limit cases and insufficient evidence**
 
@@ -186,18 +214,18 @@ uv run rag-rerank ask "오늘 서울 날씨는 어때요?" --mock
 
 ```text
 ...
-※ 리랭커 최고 점수가 문턱값보다 낮아 '근거 부족'으로 판단했습니다.
+Note: the top reranker score is below the threshold, so this counts as 'no evidence'.
 
-시간(ms): 임베딩 0 · 1단계 0 · 리랭킹 0
+Time (ms): embed 0 | stage 1 0 | rerank 0
 
-답변 A (리랭킹 전 상위 3개 근거): 근거에 따르면 시각장애인 안내견을 제외한 반려동물은 도서관 건물 안에 들어올 수 없습니다. [1]
-  인용: [1]=library-guide#18
+Answer A (top 3 evidence before reranking): 근거에 따르면 시각장애인 안내견을 제외한 반려동물은 도서관 건물 안에 들어올 수 없습니다. [1]
+  Citations: [1]=library-guide#18
 
-답변 B (리랭킹 후 상위 3개 근거): 문서에서 근거를 찾지 못했습니다.
-  인용: 없음
+Answer B (top 3 evidence after reranking): No evidence was found in the documents.
+  Citations: none
 ```
 
-(`...` marks lines trimmed for space. When evidence is insufficient, only answer B skips the model and replies "문서에서 근거를 찾지 못했습니다." ("No evidence was found in the documents."). For comparison, answer A still answers from the pre-reranking evidence as is, so it copies an unrelated sentence.)
+(`...` marks lines trimmed for space. When evidence is insufficient, only answer B skips the model and replies "No evidence was found in the documents." (in Korean: "문서에서 근거를 찾지 못했습니다."). For comparison, answer A still answers from the pre-reranking evidence as is, so it copies an unrelated sentence.)
 
 ## Step by step
 
@@ -236,7 +264,7 @@ How to read it: **the smaller "2nd's score as a percentage of 1st's" is, the mor
 
 ### Step 4. Compare answers A and B
 
-Click `답변 만들기` ("Create answers") and the model answers twice for **the same question with only the evidence swapped.** Answer A reads the top 3 before reranking as evidence, and answer B reads the top 3 after reranking. B starts only after A finishes.
+Click `Make answers` (`답변 만들기` in the Korean screen) and the model answers twice for **the same question with only the evidence swapped.** Answer A reads the top 3 before reranking as evidence, and answer B reads the top 3 after reranking. B starts only after A finishes.
 
 ![Answer A: '문서에서 근거를 찾지 못했습니다', answer B: a correct answer with citation [1]](docs/images/05-answers.png)
 <sub>Answer A (pre-reranking evidence) says "문서에서 근거를 찾지 못했습니다." ("No evidence was found in the documents."), and answer B (post-reranking evidence) says "중학생이 만 13세 이상이면 가입할 수 있으나, 만 13세 이상 18세 미만은 보호자 동의가 필요합니다. [1]" ("A middle schooler can sign up if aged 13 or older, but ages 13 to under 18 need a guardian's consent. [1]").</sub>
@@ -247,7 +275,7 @@ Answers are slow. On this MacBook (M3 16GB), A and B together took about 4 minut
 
 ### Step 5. Check with the scorecard that it was not luck
 
-Something working on one question may be chance, so in the **실험** ("Experiment") tab all 14 example questions are run through the 3 retrievers and scored before/after reranking (about 14 seconds).
+Something working on one question may be chance, so in the **Experiment** tab (`실험` in the Korean screen) all 14 example questions are run through the 3 retrievers and scored before/after reranking (about 14 seconds).
 
 ![Scorecard: keyword 5/14→10/14, vector 9/14→11/14, hybrid 7/14→11/14](docs/images/06-eval.png)
 <sub>The upper table summarizes by retriever; the lower table shows, per question, how the rank of the correct passage changed. Green is improvement; a red `밖 → 밖` ("outside → outside") means stage 1 did not even bring it into the candidates.</sub>
@@ -286,14 +314,14 @@ If the reranker's top score is below the threshold, it is judged "insufficient e
 
 ### Step 8. Try it with your own documents
 
-In the **내 문서** ("My documents") tab, type a folder path or drag files in, and those documents are indexed. When indexing finishes, the view automatically returns to the comparison tab with "내 문서" ("My documents") selected.
+In the **My documents** tab (`내 문서` in the Korean screen), type a folder path or drag files in, and those documents are indexed. When indexing finishes, the view automatically returns to the comparison tab with "내 문서" ("My documents") selected.
 
 ![My documents tab: 1 enter a folder path, 2 drag files in](docs/images/07-docs.png)
 <sub>1 is the folder path input (for example `~/notes`), and 2 is where you drag `.md`/`.txt` files. Documents never leave this computer.</sub>
 
 In the terminal, `uv run rag-rerank index ~/notes --show 5` first shows how your documents get split, and giving a folder to `--docs`, as in `uv run rag-rerank ask "회의는 언제 하나요?" --docs ~/notes` ("When is the meeting?"), searches those documents instead of the samples and compares before/after (without `--docs` it searches the sample documents). It reads up to 200 files, up to 1MB per file. The index files (`.cache/index`) are kept up to 16.
 
-If the folder does not exist or contains no `.md`/`.txt` documents, instead of an error trace (traceback) it prints the mode notice line followed by one line to stderr, `폴더가 아닙니다: <경로>` ("not a folder: <path>") or `.md 또는 .txt 문서를 찾지 못했습니다.` ("no .md or .txt documents found."), and exits with exit code 1 (v0.1.2).
+If the folder does not exist or contains no `.md`/`.txt` documents, instead of an error trace (traceback) it prints the mode notice line followed by one line to stderr and exits with exit code 1. In English the line is `Not a folder: <path>` or `No .md or .txt documents were found.`; with `--lang ko` it is `폴더가 아닙니다: <경로>` or `.md 또는 .txt 문서를 찾지 못했습니다.` (v0.1.2). Since v0.2.0 a document you cannot read (for example a file without read permission) gets the same treatment: `Cannot access /tmp/notes/perm/a.md: Permission denied` (Korean: `/tmp/notes/perm/a.md에 접근할 수 없습니다 (Permission denied)`), exit code 1, no traceback.
 
 ## How does it work?
 
@@ -402,12 +430,12 @@ The question and piece are joined into one input and fed to the model, and the o
 
 ## Try changing things yourself
 
-1. **Bring your own documents** — Index a folder in the `내 문서` ("My documents") tab → choose "내 문서" in the comparison tab → ask a question you usually search for. There is no answer marker, but the evidence-sentence underline and the difference between the two lists are still visible.
+1. **Bring your own documents** — Index a folder in the `My documents` tab → choose "My documents" in the comparison tab → ask a question you usually search for. There is no answer marker, but the evidence-sentence underline and the difference between the two lists are still visible.
 2. **Reduce top-k** — Move the `top-k` slider on the comparison screen from 8 to 4 → if the correct passage is pushed out of the candidates, the comparison screen shows the notice "정답 문단이 1단계 후보 안에 없습니다" ("the correct passage is not among the stage-1 candidates"). Recomputing the scorecard in the `실험` ("Experiment") tab also shows it as `밖 → 밖`. Conversely, raise top-k up to 20 on `책 반납이 한 달 넘게 …` ("a book return more than a month overdue …"). With more candidates, the correct passage may enter them.
-3. **Turn off the title prefix and change the chunking method** — Turn off `제목 붙이기` ("Prepend titles") and recompute the scorecard in the `실험` tab. With this sample, hybrid hit@1 was 11/14 with titles and 10/14 without. Changing `청킹` ("Chunking") to `재귀 분할(200자)` ("recursive split (200 characters)") also shows how the pieces change and how the ranks move.
+3. **Turn off the title prefix and change the chunking method** — Turn off `Prepend titles` (`제목 붙이기`) and recompute the scorecard in the `Experiment` tab. With this sample, hybrid hit@1 was 11/14 with titles and 10/14 without. Changing `Chunking` (`청킹`) to `Recursive split (200 chars)` (`재귀 분할(200자)`) also shows how the pieces change and how the ranks move.
 4. **Switch to a faster answer model** — `qwen3:4b` is slow because it thinks for several hundred to a thousand tokens before answering. Pull a model without a thinking stage and run `RAG_CHAT_MODEL=<model name> uv run rag-rerank` (the answer format may differ by model).
 5. **Adjust the insufficient-evidence threshold** (real mode only; mock is fixed at 0.1) — Raising the threshold, as in `RAG_MIN_RERANK_SCORE=0.05 uv run rag-rerank`, makes "insufficient evidence" appear more often, and lowering it makes it appear less. Test with questions that are only slightly related to the documents.
-6. **Compare the same question across retrievers** — Click `벡터` ("Vector") / `키워드` ("Keyword") / `하이브리드` ("Hybrid") in turn to see how the stage-1 ranks differ and how similar they become after reranking.
+6. **Compare the same question across retrievers** — Click `Vector` / `Keyword` / `Hybrid` in turn to see how the stage-1 ranks differ and how similar they become after reranking.
 
 All the environment variables you can set are in [`.env.example`](.env.example).
 
@@ -419,11 +447,13 @@ All the environment variables you can set are in [`.env.example`](.env.example).
 | It says the port is already in use | Another program is using 8765 | `uv run rag-rerank serve --port 8766` |
 | The first comparison takes long and a progress bar shows | The reranker model (about 588MB) is being downloaded for the first time | Wait until it finishes. If it fails, click the `다시 시도` ("Retry") button (up to 3 times) or pre-download with `uv run rag-rerank doctor --download` |
 | Answers take several minutes | It is a thinking model, so it thinks a lot before answering | See the step 4 explanation. If it exceeds 120 seconds, an answer that copies the evidence sentence as is appears instead, with a notice |
-| In real mode, an error like `ReadTimeout` shows in the answer box | Ollama is busy with other work or is loading the model into memory | Click `답변 만들기` ("Create answers") again after a moment |
+| In real mode, an error like `ReadTimeout` shows in the answer box | Ollama is busy with other work or is loading the model into memory | Click `Make answers` (`답변 만들기` in the Korean screen) again after a moment |
 | The screen won't open and shows `Invalid host header` (400) | For security, addresses other than `127.0.0.1` or `localhost` are rejected | Open `http://127.0.0.1:8765` or `http://localhost:8765` |
-| The browser does not open automatically | On a headless server, over SSH or in a container there is no browser to open | Open the `화면: http://127.0.0.1:8765` address printed in the terminal yourself. To turn off auto-open, use `--no-browser` (or `RAG_NO_BROWSER=1`) |
+| The browser does not open automatically | On a headless server, over SSH or in a container there is no browser to open | Open the `UI: http://127.0.0.1:8765` address printed in the terminal yourself. To turn off auto-open, use `--no-browser` (or `RAG_NO_BROWSER=1`) |
 | I want to open it from another device (phone, laptop) on the same Wi-Fi | By default only `127.0.0.1`/`localhost` connections from this computer are accepted | Only on a trusted network, run `uv run rag-rerank serve --host 0.0.0.0`. The terminal prints the address to open on this computer (`http://127.0.0.1:8765`); from other devices connect to `http://<this computer's IP>:8765`. The address check is turned off in this case, so don't use it on public Wi-Fi |
 | I ran it inside a Docker container or virtual machine and it won't open from the outside browser | By default it accepts only connections from the container itself (`127.0.0.1`), and the container port is not open to the outside either | Start the container with the port open, like `docker run -p 8765:8765 …`, run `uv run rag-rerank serve --mock --host 0.0.0.0 --no-browser` inside, then open `http://127.0.0.1:8765` from the outside (for a virtual machine, set up port forwarding and do the same) |
+| The terminal or the screen shows the wrong language | The language follows `--lang`, then `RAG_LANG`, then `LC_ALL`/`LC_MESSAGES`/`LANG`, and anything that is not Korean is English. In the web screen a stored choice wins over the browser language | Pass `--lang ko` (or `--lang en`), set `RAG_LANG`, or pick the language in the header menu. See [Choose the screen language](#choose-the-screen-language) |
+| The web screenshots show Korean labels although I want English | Known limitation: the web screenshots in this document show the Korean screen and were not re-shot after the English screen was added in v0.2.0; only the terminal score card has English and Korean images | Open the web screen and pick `English` in the `Language` menu of the header; the captions give the English wording |
 | `uv` says Python 3.14 is not available | This project requires 3.14 or later | `uv python install 3.14` |
 | An "unauthenticated requests" warning appears on the first download | This is the notice shown when downloading without a Hugging Face token | Normal. The download works without a token |
 | Same question, but the numbers differ slightly from this document | Embeddings change when the Ollama model version changes | The numbers in this document are based on `bge-m3` (ID 790764642607) and `qwen3:4b` (ID 359d7dd4bcda) |
