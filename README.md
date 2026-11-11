@@ -1,5 +1,7 @@
 # RAG 리랭킹 전/후 비교 — 문서 검색이 어떻게 답변을 바꾸는지 눈으로 보기
 
+**한국어** | [English](README.en.md)
+
 > **English summary** — A local, keyless demo that walks through RAG (retrieval-augmented generation): chunking, embeddings, vector / keyword / hybrid search and a grounded answer. Its centerpiece is a before/after view that shows how a cross-encoder reranker reorders the retrieved passages and changes the final answer. Run it with `uv run rag-rerank`; without Ollama it falls back to a deterministic mock mode that needs no network and still reproduces the key before/after scene (with different numbers).
 
 ![질문을 고르면 '리랭킹 전' 목록의 6위 정답 카드가 '리랭킹 후' 1위로 미끄러져 올라가는 화면 녹화](docs/images/00-hero.gif)
