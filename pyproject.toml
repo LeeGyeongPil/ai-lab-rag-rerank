@@ -1,6 +1,6 @@
 [project]
 name = "ai-lab-rag-rerank"
-version = "0.2.0"
+version = "0.2.1"
 description = "Compare RAG retrieval before and after cross-encoder reranking on your own Korean documents (local, keyless, with a deterministic mock mode)."
 license = "MIT"
 readme = "README.md"
@@ -22,7 +22,10 @@ dependencies = [
 rag-rerank = "rag_rerank.cli:main"
 
 [dependency-groups]
-dev = ["pytest==9.2.0"]
+dev = [
+    "pytest==9.2.0",
+    "pytest-timeout==2.4.0",
+]
 
 [build-system]
 requires = ["uv_build>=0.9,<0.14"]
@@ -33,4 +36,6 @@ module-name = "rag_rerank"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+timeout = 120
+timeout_method = "thread"
 markers = ["real: 실제 Ollama·리랭커 모델이 필요한 테스트(없으면 건너뜀, CI 제외)"]

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.1 - 2026-11-12
+
+### Fixed
+- CI could hang for hours without output. The workflow job now has `timeout-minutes: 15`, the `run:` steps have their own time limits (the `uses:` steps are covered by the job limit only), and the test suite uses `pytest-timeout` (120 s per test) so a stuck test fails instead of waiting forever. No runtime behaviour changed.
+
+### Known limits
+- `tests/test_ci_guard.py` checks the workflow with text patterns, not by parsing the YAML.
+- The `scales` labels returned by `/api/compare` stay in Korean whatever the screen language; the web screen translates them itself.
+
 ## 0.2.0 - 2026-11-12
 
 ### Added
