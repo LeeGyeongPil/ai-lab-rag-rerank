@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.2 - 2026-11-13
+
+### Changed
+- Updated `onnxruntime` from 1.31.1 to 1.32.0. No behaviour change.
+
 ## 0.2.1 - 2026-11-12
 
 ### Fixed
