@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.3 - 2026-11-17
+
+### Fixed
+- `rag-rerank ask` with an empty or whitespace-only question crashed with a traceback (exit 1). It now prints a one-line usage error in the chosen screen language (`question must not be empty` / `질문이 비어 있습니다`) and exits with code 2, before indexing or embedding. Same for every `--retriever` and with `--json`.
+
+### Known limits
+- The web API still answers HTTP 500 for a whitespace-only question on `/api/compare` (an empty string already gives 422).
+
 ## 0.2.2 - 2026-11-13
 
 ### Changed
