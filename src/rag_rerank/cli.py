@@ -336,6 +336,9 @@ def main(argv: list[str] | None = None) -> int:
     cmd = args.cmd or "serve"
     if cmd == "serve" and args.cmd is None:  # 하위 명령 없이 실행 → serve 기본값 채우기
         args.host, args.port = "127.0.0.1", None
+    if cmd == "ask" and not args.question.strip():  # 색인·임베딩 전에 막는다(빈 벡터 검색 → 트레이스백 방지)
+        print(f"rag-rerank ask: error: {t(args.lang, 'cli.question_empty')}", file=sys.stderr)
+        return 2  # argparse 사용법 오류와 같은 종료 코드
     try:
         if cmd == "ask":
             return asyncio.run(_ask(args))

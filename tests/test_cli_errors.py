@@ -143,3 +143,28 @@ def test_good_folder_still_ok(tmp_path, capsys):
     assert "1 documents" in capsys.readouterr().out
     assert main(["index", str(d), "--mock", "--lang", "ko"]) == 0
     assert "문서 1개" in capsys.readouterr().out
+
+
+EMPTY_Q = {"en": "question must not be empty", "ko": "질문이 비어 있습니다"}
+
+
+@pytest.mark.parametrize("retriever", ["vector", "hybrid", "keyword"])
+@pytest.mark.parametrize("question", ["", " ", "   "])
+@pytest.mark.parametrize("lang", ["en", "ko"])
+def test_empty_question_is_usage_error(capsys, lang, question, retriever):
+    for extra in ([], ["--json"]):
+        argv = ["ask", question, "--mock", "--lang", lang, "--retriever", retriever, *extra]
+        assert main(argv) == 2
+        out, err = capsys.readouterr()
+        assert EMPTY_Q[lang] in err
+        assert "Traceback" not in err
+        assert len(err.strip().splitlines()) == 1  # 색인 전에 끝나므로 모드 안내 줄도 없다
+        assert out == ""
+
+
+@pytest.mark.parametrize("lang", ["en", "ko"])
+def test_subprocess_empty_question(tmp_path, lang):
+    proc = _run(["ask", ""], lang, tmp_path)
+    assert proc.returncode == 2
+    assert "Traceback" not in proc.stderr
+    assert EMPTY_Q[lang] in proc.stderr
