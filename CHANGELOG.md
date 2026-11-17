@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.4 - 2026-11-17
+
+### Fixed
+- `--top-k 0` or a negative value (`ask`, `eval`, `index`) was accepted and gave wrong output (all-zero score card, or 20 candidates for `-3`) with exit 0. It is now a usage error with exit code 2. Values of 1 or more behave as before.
+
 ## 0.2.3 - 2026-11-17
 
 ### Fixed

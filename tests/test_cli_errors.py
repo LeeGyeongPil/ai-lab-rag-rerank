@@ -168,3 +168,22 @@ def test_subprocess_empty_question(tmp_path, lang):
     assert proc.returncode == 2
     assert "Traceback" not in proc.stderr
     assert EMPTY_Q[lang] in proc.stderr
+
+
+@pytest.mark.parametrize("lang", ["en", "ko"])
+@pytest.mark.parametrize("value", ["0", "-3"])
+@pytest.mark.parametrize("cmd", [["ask", "q"], ["eval"]])
+def test_top_k_zero_or_negative_is_usage_error(capsys, lang, value, cmd):
+    with pytest.raises(SystemExit) as exc:
+        main([*cmd, "--mock", "--lang", lang, "--top-k", value])
+    assert exc.value.code == 2
+    out, err = capsys.readouterr()
+    assert "--top-k" in err and value in err
+    assert "Traceback" not in err
+    assert out == ""
+
+
+def test_top_k_valid_values_still_work(capsys):
+    for value in ["1", "8", "30"]:
+        assert main(["ask", "자전거", "--mock", "--lang", "en", "--top-k", value]) == 0
+        assert f"top-k {value}" in capsys.readouterr().out

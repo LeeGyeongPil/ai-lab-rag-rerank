@@ -292,10 +292,20 @@ def build_parser(lang: str = "en") -> argparse.ArgumentParser:
     # --lang 도 하위 명령 앞뒤 어디에 써도 된다. 값이 없으면 main() 이 RAG_LANG·LANG 으로 정한다
     common.add_argument("--lang", choices=LANGS, default=argparse.SUPPRESS, metavar="{en,ko}", help=h("help.lang"))
 
+    def positive_int(text: str) -> int:
+        # --top-k 0 / 음수는 조용히 이상한 결과를 내므로 argparse 사용법 오류(종료 코드 2)로 거부한다
+        try:
+            value = int(text)
+        except ValueError:
+            raise argparse.ArgumentTypeError(t(lang, "cli.top_k_invalid", value=text)) from None
+        if value < 1:
+            raise argparse.ArgumentTypeError(t(lang, "cli.top_k_invalid", value=text))
+        return value
+
     def chunk_args(p):
         p.add_argument("--chunking", choices=STRATEGIES, default="paragraph", help=h("help.chunking"))
         p.add_argument("--no-title-prefix", action="store_true", help=h("help.no_title_prefix"))
-        p.add_argument("--top-k", type=int, default=8, help=h("help.top_k"))
+        p.add_argument("--top-k", type=positive_int, default=8, help=h("help.top_k"))
 
     parser = argparse.ArgumentParser(prog="rag-rerank", parents=[common], description=h("help.description"))
     # 하위 명령 없이 'rag-rerank --no-browser' 로도 쓸 수 있게(화면 없는 서버·컨테이너·SSH)
