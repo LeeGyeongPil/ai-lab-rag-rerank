@@ -444,6 +444,7 @@ All the environment variables you can set are in [`.env.example`](.env.example).
 | Symptom | Cause | Fix |
 |---|---|---|
 | A `MOCK` badge shows at the top of the screen and the numbers differ from this document | It was run with `--mock`, or Ollama is off or the models were not pulled. Mock numbers are in [Follow along in practice (mock) mode](#follow-along-in-practice-mock-mode) | Run `ollama pull bge-m3` and `ollama pull qwen3:4b`, then run `uv run rag-rerank` again without `--mock`. The notice at the top of the screen and `uv run rag-rerank doctor` tell you what is missing |
+| `rag-rerank ask` prints `question must not be empty` and exits with code 2 | The question was empty or only spaces | Give a non-empty question, e.g. `uv run rag-rerank ask "your question" --mock` |
 | It says the port is already in use | Another program is using 8765 | `uv run rag-rerank serve --port 8766` |
 | The first comparison takes long and a progress bar shows | The reranker model (about 588MB) is being downloaded for the first time | Wait until it finishes. If it fails, click the `다시 시도` ("Retry") button (up to 3 times) or pre-download with `uv run rag-rerank doctor --download` |
 | Answers take several minutes | It is a thinking model, so it thinks a lot before answering | See the step 4 explanation. If it exceeds 120 seconds, an answer that copies the evidence sentence as is appears instead, with a notice |
